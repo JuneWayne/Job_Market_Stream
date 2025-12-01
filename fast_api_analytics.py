@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+from typing import Optional, List, Dict, Any
+
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 import duckdb
 from pathlib import Path
@@ -8,17 +10,12 @@ DB_PATH = Path("data/jobs.duckdb")
 
 app = FastAPI(title="Job Market Analytics API")
 
-origins = [
-    "https://junewayne.github.io",                  # GitHub Pages root
-    "https://junewayne.github.io/job-market-stream", # site path
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
-
+# ------------------------------------------------------------------
+# CORS – for now, allow everything to kill CORS errors during dev
+# ------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    # or for testing: allow_origins=["*"],
+    allow_origins=["*"],          
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,24 +25,15 @@ app.add_middleware(
 def get_conn():
     if not DB_PATH.exists():
         raise RuntimeError(f"DuckDB file {DB_PATH} does not exist.")
-    # read_only so we do not accidentally mutate
     return duckdb.connect(str(DB_PATH), read_only=True)
 
 
 # ------------------------------------------------------------------
 # Small helpers
 # ------------------------------------------------------------------
-
-
 def friendly_age(dt: Optional[datetime]) -> Optional[str]:
-    """
-    Turn a timestamp into a human-friendly "2 days ago" string.
-    Uses UTC; if your timestamps are naive they are treated as UTC.
-    """
-    if dt is None:
-        return None
-
-    if not isinstance(dt, datetime):
+    """Turn a timestamp into '2 days ago' style text."""
+    if dt is None or not isinstance(dt, datetime):
         return None
 
     if dt.tzinfo is None:
@@ -72,15 +60,12 @@ def friendly_age(dt: Optional[datetime]) -> Optional[str]:
 
 
 def df_to_records(df) -> List[Dict[str, Any]]:
-    """Convenience wrapper for JSON serialisation."""
     return df.to_dict(orient="records")
 
 
 # ------------------------------------------------------------------
 # 1) Overview stats
 # ------------------------------------------------------------------
-
-
 @app.get("/api/overview")
 def overview():
     conn = get_conn()
@@ -93,7 +78,7 @@ def overview():
             MIN(time_posted_parsed)            AS earliest_posting,
             MAX(time_posted_parsed)            AS latest_posting
         FROM jobs;
-    """
+        """
     ).fetchone()
     conn.close()
 
@@ -109,13 +94,10 @@ def overview():
 # ------------------------------------------------------------------
 # 2) Jobs by function
 # ------------------------------------------------------------------
-
-
 @app.get("/api/jobs_by_function")
-def jobs_by_function(days: int | None = None):
+def jobs_by_function(days: Optional[int] = None):
     """
-    If days is provided, filter to last `days` days.
-    Otherwise, use all history.
+    If days is provided, filter to last `days` days. Otherwise, use all history.
     """
     conn = get_conn()
     if days is None:
@@ -127,7 +109,7 @@ def jobs_by_function(days: int | None = None):
             FROM jobs
             GROUP BY 1
             ORDER BY count DESC;
-        """
+            """
         ).fetchdf()
     else:
         cutoff = datetime.now() - timedelta(days=days)
@@ -140,7 +122,7 @@ def jobs_by_function(days: int | None = None):
             WHERE time_posted_parsed >= ?
             GROUP BY 1
             ORDER BY count DESC;
-        """,
+            """,
             [cutoff],
         ).fetchdf()
     conn.close()
@@ -150,10 +132,8 @@ def jobs_by_function(days: int | None = None):
 # ------------------------------------------------------------------
 # 3) Work mode distribution
 # ------------------------------------------------------------------
-
-
 @app.get("/api/work_mode")
-def work_mode(days: int | None = None):
+def work_mode(days: Optional[int] = None):
     conn = get_conn()
     if days is None:
         df = conn.execute(
@@ -164,7 +144,7 @@ def work_mode(days: int | None = None):
             FROM jobs
             GROUP BY 1
             ORDER BY count DESC;
-        """
+            """
         ).fetchdf()
     else:
         cutoff = datetime.now() - timedelta(days=days)
@@ -177,7 +157,7 @@ def work_mode(days: int | None = None):
             WHERE time_posted_parsed >= ?
             GROUP BY 1
             ORDER BY count DESC;
-        """,
+            """,
             [cutoff],
         ).fetchdf()
     conn.close()
@@ -185,12 +165,10 @@ def work_mode(days: int | None = None):
 
 
 # ------------------------------------------------------------------
-# 4) Top skills (explode comma list)
+# 4) Top skills (comma-split)
 # ------------------------------------------------------------------
-
-
 @app.get("/api/top_skills")
-def top_skills(limit: int = 30, days: int | None = None):
+def top_skills(limit: int = 30, days: Optional[int] = None):
     """
     Returns top N skills across all jobs (or recent window if days is given).
     Assumes a column `skills` with comma-separated values.
@@ -206,9 +184,12 @@ def top_skills(limit: int = 30, days: int | None = None):
             WHERE skills IS NOT NULL AND skills <> ''
     """
 
+    params: List[Any] = []
+
     if days is not None:
         cutoff = datetime.now() - timedelta(days=days)
         base_query += " AND time_posted_parsed >= ? "
+        params.append(cutoff)
 
     base_query += """
         )
@@ -221,26 +202,18 @@ def top_skills(limit: int = 30, days: int | None = None):
         ORDER BY count DESC
         LIMIT ?;
     """
+    params.append(limit)
 
-    if days is not None:
-        df = conn.execute(base_query, [cutoff, limit]).fetchdf()
-    else:
-        df = conn.execute(base_query, [limit]).fetchdf()
-
+    df = conn.execute(base_query, params).fetchdf()
     conn.close()
     return df_to_records(df)
 
 
 # ------------------------------------------------------------------
-# 5) Daily time series
+# 5) Daily counts
 # ------------------------------------------------------------------
-
-
 @app.get("/api/daily_counts")
-def daily_counts(days: int = 30):
-    """
-    Jobs per day for the last `days` days, ordered by date.
-    """
+def daily_counts(days: int = 180):
     conn = get_conn()
     cutoff = datetime.now() - timedelta(days=days)
     df = conn.execute(
@@ -253,43 +226,43 @@ def daily_counts(days: int = 30):
           AND time_posted_parsed >= ?
         GROUP BY 1
         ORDER BY day;
-    """,
+        """,
         [cutoff],
     ).fetchdf()
     conn.close()
-    # Convert Timestamp to ISO strings for JSON friendliness
     df["day"] = df["day"].astype(str)
     return df_to_records(df)
 
 
 # ------------------------------------------------------------------
-# 6) NEW – Map + Beeswarm endpoints
+# 6) Hourly counts (last N hours, default 24)
 # ------------------------------------------------------------------
+@app.get("/api/hourly_counts")
+def hourly_counts(hours: int = 24):
+    conn = get_conn()
+    cutoff = datetime.now() - timedelta(hours=hours)
+    df = conn.execute(
+        """
+        SELECT
+            date_trunc('hour', time_posted_parsed) AS hour,
+            COUNT(*) AS job_count
+        FROM jobs
+        WHERE time_posted_parsed IS NOT NULL
+          AND time_posted_parsed >= ?
+        GROUP BY 1
+        ORDER BY hour;
+        """,
+        [cutoff],
+    ).fetchdf()
+    conn.close()
+    df["hour"] = df["hour"].astype(str)
+    return df_to_records(df)
 
 
-@app.get("/api/map_jobs")
-def map_jobs(
-    limit: int = Query(1500, ge=1, le=5000),
-    days: int = Query(365, ge=1, le=730),
-):
-    """
-    Job-level records used for both the map popups and the beeswarm.
-
-    Assumed columns in `jobs` (rename if needed):
-      - job_title
-      - company_name
-      - location
-      - time_posted_parsed (TIMESTAMP)
-      - num_applicants (INT, NULL allowed)
-      - work_mode
-      - job_function
-      - industry
-      - skills (comma-separated; aliased as skills_desired)
-      - degree_qualifications
-      - summary
-      - job_url
-      - latitude, longitude (FLOAT; NULL allowed)
-    """
+# ------------------------------------------------------------------
+# 7) Map + Beeswarm jobs
+# ------------------------------------------------------------------
+def _raw_beeswarm_query(limit: int, days: int):
     conn = get_conn()
     cutoff = datetime.now() - timedelta(days=days)
 
@@ -313,7 +286,8 @@ def map_jobs(
         FROM jobs
         WHERE time_posted_parsed IS NOT NULL
           AND time_posted_parsed >= ?
-          AND location IS NOT NULL
+          AND latitude IS NOT NULL
+          AND longitude IS NOT NULL
         ORDER BY time_posted_parsed DESC
         LIMIT ?;
         """,
@@ -321,92 +295,27 @@ def map_jobs(
     ).fetchdf()
     conn.close()
 
-    # Add human-readable "time_posted" and (optionally) drop raw timestamp
     df["time_posted"] = df["time_posted_parsed"].apply(friendly_age)
-    df["time_posted_parsed"] = df["time_posted_parsed"].astype(str)  # ISO strings
-
+    df["time_posted_parsed"] = df["time_posted_parsed"].astype(str)
     return df_to_records(df)
 
 
-@app.get("/api/map_location_summaries")
-def map_location_summaries(
+@app.get("/api/beeswarm_jobs")
+def beeswarm_jobs(
+    limit: int = Query(2000, ge=1, le=5000),
+    days: int = Query(365, ge=1, le=730),
+):
+    """Primary endpoint used by map + beeswarm."""
+    return _raw_beeswarm_query(limit=limit, days=days)
+
+
+@app.get("/api/map_jobs")
+def map_jobs_alias(
+    limit: int = Query(2000, ge=1, le=5000),
     days: int = Query(365, ge=1, le=730),
 ):
     """
-    Per-location summary: number of jobs + average applicants.
-    Used to color the map bubbles.
+    Backwards-compatible alias so your frontend can call /api/map_jobs
+    or /api/beeswarm_jobs – they return the same payload.
     """
-    conn = get_conn()
-    cutoff = datetime.now() - timedelta(days=days)
-
-    df = conn.execute(
-        """
-        SELECT
-          location,
-          COUNT(*)             AS number_of_jobs,
-          AVG(num_applicants)  AS average_applicants
-        FROM jobs
-        WHERE time_posted_parsed IS NOT NULL
-          AND time_posted_parsed >= ?
-          AND location IS NOT NULL
-        GROUP BY location;
-        """,
-        [cutoff],
-    ).fetchdf()
-    conn.close()
-
-    return df_to_records(df)
-
-
-@app.get("/api/map_locations")
-def map_locations():
-    """
-    Distinct locations with latitude/longitude for the map.
-    Assumes columns `latitude` and `longitude` exist in jobs.
-    If you store them elsewhere, change this to join to that table.
-    """
-    conn = get_conn()
-    df = conn.execute(
-        """
-        SELECT
-          location,
-          AVG(latitude)  AS latitude,
-          AVG(longitude) AS longitude
-        FROM jobs
-        WHERE latitude IS NOT NULL
-          AND longitude IS NOT NULL
-        GROUP BY location;
-        """
-    ).fetchdf()
-    conn.close()
-    return df_to_records(df)
-
-@app.get("/api/hourly_counts")
-def hourly_counts(hours: int = 24):
-    """
-    Jobs per hour for the last `hours` hours.
-    Used for the 'last 24 hours' bubble trend.
-    """
-    conn = get_conn()
-    now = datetime.now()
-    cutoff = now - timedelta(hours=hours)
-
-    df = conn.execute(
-        """
-        SELECT
-            date_trunc('hour', time_posted_parsed) AS hour,
-            COUNT(*) AS job_count
-        FROM jobs
-        WHERE time_posted_parsed IS NOT NULL
-          AND time_posted_parsed >= ?
-        GROUP BY 1
-        ORDER BY hour;
-        """,
-        [cutoff],
-    ).fetchdf()
-    conn.close()
-
-    # Make timestamps JSON-friendly
-    df["hour"] = df["hour"].astype(str)
-    return df.to_dict(orient="records")
-
+    return _raw_beeswarm_query(limit=limit, days=days)
