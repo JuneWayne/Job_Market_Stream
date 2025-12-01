@@ -116,7 +116,7 @@ def main():
     conn.close()
 
 
-def hourly_ingestion(interval_seconds=3600):
+def hourly_ingestion(interval_seconds=1800):
     """
     Periodically rebuild DuckDB from parsed_jobs.csv.
     Set interval_seconds=3600 for "true hourly" runs.
@@ -135,7 +135,6 @@ def hourly_ingestion(interval_seconds=3600):
 
 
 if __name__ == "__main__":
-    # For Docker continuous loop (currently every 10 minutes)
-    hourly_ingestion(interval_seconds=3600)
-    # If you prefer single-run behavior locally, swap to:
-    # main()
+
+    hourly_ingestion(interval_seconds=1800)
+

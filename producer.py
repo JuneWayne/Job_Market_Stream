@@ -62,7 +62,7 @@ def run_producer(
         producer.close()
         logger.info("Kafka producer closed.")
 
-def hourly_scraping(interval_hours=1):
+def hourly_scraping(interval_hours=0.5):
     import time
     while True:
         run_producer(
@@ -76,4 +76,4 @@ def hourly_scraping(interval_hours=1):
         time.sleep(interval_hours * 3600)
 
 if __name__ == "__main__":
-    hourly_scraping(interval_hours=1)
+    hourly_scraping(interval_hours=0.5)
