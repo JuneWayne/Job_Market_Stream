@@ -1255,6 +1255,16 @@
         loadWorkMode7d();
         loadHourlyCounts24h();
         loadMapAndBeeswarm();
+
+        setInterval(() => {
+            loadOverview();
+            loadDailyCounts();
+            loadJobsByFunctionAll();
+            loadJobsByFunction7d();
+            loadWorkMode7d();
+            loadHourlyCounts24h();
+            loadMapAndBeeswarm();
+        }, 3 * 60 * 1000); // 5 minutes
     </script>
 </body>
 

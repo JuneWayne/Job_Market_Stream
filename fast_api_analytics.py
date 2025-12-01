@@ -285,32 +285,32 @@ def _raw_beeswarm_query(limit: int, days: int):
         df = conn.execute(
             """
             SELECT
-              j.job_id,
-              j.job_title,
-              j.job_description              AS summary,
-              j.company_name,
-              j.location,
-              j.job_function                 AS "Job Function",
-              ''                             AS "Industries",          -- placeholder
-              j.skills                       AS skills_desired,
-              j.degree_requirement           AS degree_qualifications,
-              j.time_posted_parsed,
-              j.application_link,
-              j.application_link             AS job_link,
-              j.num_applicants_int           AS num_applicants,
-              j.work_mode,
-              g.latitude,
-              g.longitude
+            j.job_id,
+            j.job_title,
+            j.job_description AS summary,
+            j.company_name,
+            j.location,
+            COALESCE(j.job_function, 'Unknown') AS job_function,
+            COALESCE(j.industry, '') AS industry,
+            j.skills AS skills,
+            j.degree_qualifications AS degree_qualifications,
+            j.time_posted_parsed,
+            j.job_link AS job_link,
+            j.num_applicants AS num_applicants,
+            j.work_mode,
+            g.latitude,
+            g.longitude
             FROM jobs AS j
             LEFT JOIN geo_locations AS g
-              ON j.location = g.location
+            ON j.location = g.location
             WHERE j.time_posted_parsed IS NOT NULL
-              AND j.time_posted_parsed >= ?
+            AND j.time_posted_parsed >= ?
             ORDER BY j.time_posted_parsed DESC
             LIMIT ?;
             """,
             [cutoff, limit],
         ).fetchdf()
+
     except duckdb.Error as e:
         # Fallback: no geo_locations table/columns yet
         print(f"[beeswarm] WARNING: falling back without geo_locations: {e}")
