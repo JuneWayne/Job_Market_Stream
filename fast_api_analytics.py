@@ -10,13 +10,21 @@ DB_PATH = Path("data/jobs.duckdb")
 app = FastAPI(title="Job Market Analytics API")
 
 # Allow your local HTML / dev origins
+app = FastAPI(title="Job Analytics API")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # in prod, restrict this
+    allow_origins=[
+        "https://junewayne.github.io",              # your GitHub Pages root
+        "https://junewayne.github.io/job-market-stream",  # repo site
+        "http://localhost:8000",                    # for local testing
+        "http://127.0.0.1:8000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 def get_conn():
     if not DB_PATH.exists():
