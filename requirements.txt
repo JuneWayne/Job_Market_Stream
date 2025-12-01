@@ -1,0 +1,11 @@
+kafka-python
+requests
+python-dotenv
+duckdb
+pandas
+redis
+fastapi
+uvicorn
+bs4
+pymongo
+uvicorn[standard]

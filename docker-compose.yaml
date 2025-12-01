@@ -1,0 +1,70 @@
+version: "3.9"
+
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - "512M"
+      - --reserve-memory
+      - "0M"
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - "PLAINTEXT://0.0.0.0:9092"
+      - --advertise-kafka-addr
+      - "PLAINTEXT://redpanda:9092"
+    ports:
+      - "9092:9092" # Kafka API
+      - "9644:9644" # Admin API (optional)
+
+  console:
+    image: docker.redpanda.com/redpandadata/console:v3.1.0
+    container_name: redpanda-console
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["redpanda:9092"]
+        redpanda:
+          adminApi:
+            enabled: true
+            urls: ["http://redpanda:9644"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redpanda
+
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - redpanda
+    environment:
+      - KAFKA_SERVER=redpanda:9092
+      - KAFKA_TOPIC=job_postings
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    # uses default CMD ["python", "consumer.py"]
+
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - redpanda
+    environment:
+      - KAFKA_SERVER=redpanda:9092
+      - KAFKA_TOPIC=job_postings
+    command: ["python", "producer.py"]
+    restart: "no"

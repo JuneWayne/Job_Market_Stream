@@ -1,0 +1,406 @@
+from typing import List, Optional, Dict, Any
+import re
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+degree_patterns = [
+    ("PhD",      r"\b(ph\.?d\.?|doctorate|doctoral)\b"),
+    ("Master",   r"\b(master'?s|m\.?s\.?|msc|graduate degree)\b"),
+    ("Bachelor", r"\b(bachelor'?s|b\.?s\.?|b\.?a\.?|undergraduate degree)\b"),
+    ("Associate", r"\b(associate'?s)\b"),
+]
+
+def extract_degree_requirements(text):
+    txt = text.lower()
+    for label, pattern in degree_patterns:
+        if re.search(pattern, txt, flags=re.IGNORECASE):
+            return label
+    
+    return None
+
+skill_patterns: Dict[str, str] = {
+    # Programming languages
+    "Python":            r"\bpython\b",
+    "R":                 r"\br[\s\W]",   
+    "SQL":               r"\bsql\b",
+    "NoSQL":             r"\bnosql\b",
+    "Java":              r"\bjava\b",
+    "C++":               r"\bc\+\+\b",
+    "C":                 r"\bc language\b|\bc programming\b",
+    "C#":                r"\bc#\b|\bc sharp\b",
+    "JavaScript":        r"\bjavascript\b|\bjs\b",
+    "TypeScript":        r"\btypescript\b",
+    "Go":                r"\bgolang\b|\bgo language\b",
+    "Rust":              r"\brust\b",
+    "Scala":             r"\bscala\b",
+    "Ruby":              r"\bruby\b",
+    "PHP":               r"\bphp\b",
+    "Swift":             r"\bswift\b",
+    "Kotlin":            r"\bkotlin\b",
+    "Shell":             r"\bshell scripting\b|\bshell script\b",
+    "Bash":              r"\bbash\b",
+    "PowerShell":        r"\bpowershell\b",
+    "MATLAB":            r"\bmatlab\b",
+
+    # Web basics
+    "HTML":              r"\bhtml\b",
+    "CSS":               r"\bcss\b",
+    "SASS":              r"\bsass\b|\bscss\b",
+
+    # Data science / statistics
+    "Pandas":            r"\bpandas\b",
+    "NumPy":             r"\bnumpy\b",
+    "SciPy":             r"\bscipy\b",
+    "Scikit-learn":      r"\bscikit-learn\b|\bsklearn\b",
+    "TensorFlow":        r"\btensorflow\b",
+    "PyTorch":           r"\bpytorch\b",
+    "Keras":             r"\bkeras\b",
+    "Jupyter":           r"\bjupyter\b",
+    "XGBoost":           r"\bxgboost\b",
+    "LightGBM":          r"\blightgbm\b",
+    "CatBoost":          r"\bcatboost\b",
+    "Statsmodels":       r"\bstatsmodels\b",
+    "Bayesian Methods":  r"\bbayesian\b",
+    "A/B Testing":       r"\ba/b testing\b|\ba\/b testing\b",
+    "Hypothesis Testing":r"\bhypothesis testing\b",
+    "Time Series":       r"\btime series\b",
+    "Forecasting":       r"\bforecasting\b",
+    "NLP":               r"\bnatural language processing\b|\bnlp\b",
+    "Computer Vision":   r"\bcomputer vision\b",
+    "Reinforcement Learning": r"\breinforcement learning\b",
+
+    # Data engineering / big data
+    "Apache Spark":      r"\bspark\b",
+    "Hadoop":            r"\bhadoop\b",
+    "Kafka":             r"\bkafka\b",
+    "Airflow":           r"\bairflow\b",
+    "dbt":               r"\bdbt\b",
+    "Snowflake":         r"\bsnowflake\b",
+    "Redshift":          r"\bredshift\b",
+    "BigQuery":          r"\bbigquery\b",
+    "Databricks":        r"\bdatabricks\b",
+    "ETL":               r"\betl\b|\bextract[- ]?transform[- ]?load\b",
+    "ELT":               r"\belt\b|\bextract[- ]?load[- ]?transform\b",
+    "Data Warehouse":    r"\bdata warehouse\b",
+    "Data Lake":         r"\bdata lake\b",
+    "Lakehouse":         r"\blakehouse\b",
+    "Kafka Streams":     r"\bkafka streams\b",
+    "Flink":             r"\bflink\b",
+    "Beam":              r"\bapache beam\b|\bbeam pipeline\b",
+    "DuckDB":            r"\bduckdb\b",
+    "MotherDuck":        r"\bmotherduck\b",
+
+    # Cloud / DevOps
+    "AWS":               r"\baws\b|\bamazon web services\b",
+    "Azure":             r"\bazure\b",
+    "GCP":               r"\bgoogle cloud\b|\bgcp\b",
+    "AWS Lambda":        r"\blambda\b",
+    "AWS S3":            r"\bs3\b|\bsimple storage service\b",
+    "ECS":               r"\becs\b|\belastic container service\b",
+    "EKS":               r"\beks\b|\belastic kubernetes service\b",
+    "CloudFormation":    r"\bcloudformation\b",
+    "Azure Functions":   r"\bazure functions\b",
+    "Kubernetes":        r"\bkubernetes\b|\bk8s\b",
+    "Docker":            r"\bdocker\b",
+    "Terraform":         r"\bterraform\b",
+    "Git":               r"\bgit\b",
+    "GitHub":            r"\bgithub\b",
+    "GitLab":            r"\bgitlab\b",
+    "Bitbucket":         r"\bbitbucket\b",
+    "CI/CD":             r"\bci/cd\b|\bcontinuous integration\b|\bcontinuous deployment\b",
+    "Jenkins":           r"\bjenkins\b",
+    "Argo":              r"\bargo\b|\bargo cd\b",
+    "Linux":             r"\blinux\b",
+
+    # AI / LLM / MLOps frameworks
+    "OpenAI":            r"\bopenai\b",
+    "LangChain":         r"\blangchain\b",
+    "Hugging Face":      r"\bhugging face\b|\bhuggingface\b",
+    "TensorFlow Serving":r"\btensorflow serving\b",
+    "MLflow":            r"\bmlflow\b",
+    "Kubeflow":          r"\bkubeflow\b",
+    "Ray":               r"\bray\b",
+    "FastAPI":           r"\bfastapi\b",
+    "LangFlow":          r"\blangflow\b",
+    "LlamaIndex":        r"\bllamaindex\b|\bgpt index\b",
+    "AutoGen":           r"\bautogen\b",
+    "BentoML":           r"\bbentoml\b",
+    "SageMaker":         r"\bsagemaker\b",
+    "Vertex AI":         r"\bvertex ai\b",
+    "Azure ML":          r"\bazure ml\b|\bazure machine learning\b",
+    "Pinecone":          r"\bpinecone\b",
+    "Weights & Biases":  r"\bweights ?& ?biases\b|\bwandb\b",
+
+    # Databases
+    "MySQL":             r"\bmysql\b",
+    "PostgreSQL":        r"\bpostgresql\b|\bpostgres\b",
+    "SQL Server":        r"\bsql server\b",
+    "MongoDB":           r"\bmongodb\b|\bmongo db\b",
+    "SQLite":            r"\bsqlite\b",
+    "Oracle":            r"\boracle\b",
+    "Cassandra":         r"\bcassandra\b",
+    "Redis":             r"\bredis\b",
+    "Elasticsearch":     r"\belasticsearch\b",
+    "Firebase":          r"\bfirebase\b",
+    "DynamoDB":          r"\bdynamodb\b",
+    "Neo4j":             r"\bneo4j\b",
+    "Snowflake DB":      r"\bsnowflake\b",
+
+    # Web / SWE frameworks
+    "React":             r"\breact\b",
+    "Angular":           r"\bangular\b",
+    "Vue":               r"\bvue\.js\b|\bvuejs\b|\bvue\b",
+    "Node.js":           r"\bnode\.js\b|\bnodejs\b",
+    "Express":           r"\bexpress\.js\b|\bexpressjs\b|\bexpress\b",
+    "Django":            r"\bdjango\b",
+    "Flask":             r"\bflask\b",
+    "FastAPI (Web)":     r"\bfastapi\b",
+    "Spring":            r"\bspring\b",
+    "Spring Boot":       r"\bspring boot\b",
+    ".NET":              r"\.net\b",
+    "ASP.NET":           r"\basp\.net\b",
+    "REST APIs":         r"\brest api\b|\brestful api\b",
+    "GraphQL":           r"\bgraphql\b",
+
+    # Analytics / BI
+    "Excel":             r"\bexcel\b",
+    "Excel VBA":         r"\bvba\b|\bexcel vba\b",
+    "Tableau":           r"\btableau\b",
+    "Power BI":          r"\bpower\s*bi\b",
+    "Looker":            r"\blooker\b",
+    "Qlik":              r"\bqlik\b",
+    "SAS":               r"\bsas\b",
+    "SPSS":              r"\bspss\b",
+    "Stata":             r"\bstata\b",
+    "Google Analytics":  r"\bgoogle analytics\b",
+    "PowerPoint":        r"\bpowerpoint\b",
+    "Alteryx":           r"\balteryx\b",
+    "Mode":              r"\bmode analytics\b|\bmode\b",
+    "Domo":              r"\bdomo\b",
+    "MicroStrategy":     r"\bmicrostrategy\b",
+    "Sigma":             r"\bsigma computing\b|\bsigma analytics\b",
+    "CRM":               r"\bcrm\b",
+    
+
+    # Security / cyber
+    "Cybersecurity":     r"\bcyber ?security\b",
+    "Penetration Testing": r"\bpenetration testing\b|\bpen testing\b",
+    "Threat Detection":  r"\bthreat detection\b",
+    "SIEM":              r"\bsiem\b",
+    "Splunk":            r"\bsplunk\b",
+    "Wireshark":         r"\bwireshark\b",
+    "NIST":              r"\bnist\b",
+    "ISO 27001":         r"\biso\s*27001\b",
+    "SOC 2":             r"\bsoc\s*2\b",
+    "OWASP":             r"\bowasp\b",
+    "Vulnerability Management": r"\bvulnerability management\b",
+
+    # PM / collaboration / CRM tools
+    "Jira":              r"\bjira\b",
+    "Confluence":        r"\bconfluence\b",
+    "Notion":            r"\bnotion\b",
+    "Trello":            r"\btrello\b",
+    "Asana":             r"\basana\b",
+    "Figma":             r"\bfigma\b",
+    "Miro":              r"\bmiro\b",
+    "Salesforce":        r"\bsalesforce\b",
+    "HubSpot":           r"\bhubspot\b",
+
+    # Soft skills 
+    "Communication":     r"\bstrong communication\b|\bexcellent communication\b|\bcommunication skills\b",
+    "Teamwork":          r"\bteam player\b|\bteamwork\b|\bcollaborative\b",
+    "Leadership":        r"\bleadership\b|\bleading teams\b",
+    "Problem Solving":   r"\bproblem[- ]solving\b|\bsolve complex problems\b",
+    "Time Management":   r"\btime management\b",
+    "Presentation":      r"\bpresentation skills\b|\bpresent findings\b",
+    "Stakeholder Management": r"\bstakeholder management\b|\bstakeholder engagement\b",
+    "Project Management":     r"\bproject management\b",
+}
+
+def extract_skills(text):
+    txt = text.lower()
+    found_skills = []
+    for skill, pattern in skill_patterns.items():
+        if re.search(pattern, txt, flags=re.IGNORECASE):
+            found_skills.append(skill)
+    return found_skills
+
+def extract_work_mode(text, location):
+    desc = text.lower()
+    loc = location.lower()
+    if "remote" in desc or "remote" in loc:
+        if "hybrid" in desc:
+            return "Hybrid"
+        return "Remote"
+    
+    if "hybrid" in desc:
+        return "Hybrid"
+    
+    if "remote" in loc:
+        return "Remote"
+    
+    return "On-site"
+
+def parse_num_applicants(string):
+    txt = string.replace(",", "")
+    match = re.search(r"(\d+)", txt)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+def extract_job_function(text, title):
+    parts = []
+    parts.append(title.lower())
+    parts.append(text.lower())
+    combined = " ".join(parts)
+
+    if not combined.strip():
+        return "Other"
+    
+    # ML engineer / applied ML
+    if ("machine learning engineer" in combined or
+        "ml engineer" in combined or
+        "ml ops engineer" in combined or
+        "applied scientist" in combined or
+        "applied machine learning" in combined):
+        return "Machine Learning Engineer"
+
+    # Research scientist
+    if ("research scientist" in combined or
+        "research engineer" in combined or
+        "researcher" in combined and "research" in combined):
+        return "Research Scientist"
+
+    # Data engineer / platform / pipelines
+    if ("data engineer" in combined or
+        "data engineering" in combined or
+        "etl developer" in combined or
+        "etl engineer" in combined or
+        "data pipeline" in combined or
+        "data platform" in combined):
+        return "Data Engineer"
+
+    # MLOps / platform
+    if ("mlops" in combined or
+        "model deployment" in combined or
+        "model serving" in combined or
+        "model monitoring" in combined or
+        "ml platform" in combined):
+        return "MLOps / Platform"
+
+    # Data scientist
+    if ("data scientist" in combined or
+        "data science" in combined or
+        "ml scientist" in combined or
+        "machine learning" in combined and "scientist" in combined):
+        return "Data Scientist"
+
+    # Data analyst / BI / analytics
+    if ("data analyst" in combined or
+        "business intelligence" in combined or
+        "bi analyst" in combined or
+        "analytics engineer" in combined or
+        "marketing analyst" in combined or
+        "product analyst" in combined or
+        "insights analyst" in combined or
+        "reporting analyst" in combined or
+        "business analytics" in combined or
+        "analytics" in combined):
+        return "Data Analyst / BI"
+
+    # Security / cyber
+    if ("security engineer" in combined or
+        "security analyst" in combined or
+        "cyber security" in combined or
+        "cybersecurity" in combined or
+        "infosec" in combined or
+        "information security" in combined):
+        return "Security / Cyber"
+
+    # Software engineering / backend / frontend / fullstack
+    if ("software engineer" in combined or
+        "software developer" in combined or
+        "sde" in combined or
+        "backend engineer" in combined or
+        "back-end engineer" in combined or
+        "frontend engineer" in combined or
+        "front-end engineer" in combined or
+        "fullstack" in combined or
+        "full stack" in combined or
+        "mobile engineer" in combined or
+        "android engineer" in combined or
+        "ios engineer" in combined):
+        return "Software Engineer"
+
+    # Product manager
+    if ("product manager" in combined or
+        "product management" in combined or
+        "pm role" in combined):
+        return "Product Manager"
+
+    # Business / strategy / operations / consulting
+    if ("business analyst" in combined or
+        "strategy analyst" in combined or
+        "operations analyst" in combined or
+        "ops analyst" in combined or
+        "management consultant" in combined or
+        "strategy consultant" in combined):
+        return "Business / Strategy Analyst"
+
+    # Quant / finance roles
+    if ("quantitative analyst" in combined or
+        "quant analyst" in combined or
+        "quant research" in combined or
+        "trading" in combined and "analyst" in combined or
+        "risk analyst" in combined):
+        return "Quant / Finance"
+
+    return "Other"
+
+def parse_time_posted(time_posted):
+    txt = time_posted.strip().lower()
+    match = re.search(r"(\d+)\s+(minute|hour|day|week|month|year)s?\s+ago", txt)
+    if not match:
+        return None
+    value = int(match.group(1))
+    unit = match.group(2)
+    now_et = datetime.now(ZoneInfo("America/New_York"))  
+
+    if unit == "minute":
+        delta = timedelta(minutes=value)
+    elif unit == "hour":
+        delta = timedelta(hours=value)
+    elif unit == "day":
+        delta = timedelta(days=value)
+    elif unit == "week":
+        delta = timedelta(weeks=value)
+    elif unit == "month":
+        # crude approximation, fine for trend analysis
+        delta = timedelta(days=30 * value)
+    elif unit == "year":
+        delta = timedelta(days=365 * value)
+    else:
+        return None
+
+    return now_et - delta
+
+def parse_job_postings(df_jobs):
+    job = dict(df_jobs)
+
+    description = job.get("job_description", "") or ""
+    title = job.get("job_title", "") or ""
+    time_posted = job.get("time_posted", "") or ""
+    location = job.get("location", "") or ""
+    num_applicants_str = job.get("num_applicants", None)
+    job["num_applicants_int"] = parse_num_applicants(num_applicants_str) if num_applicants_str else None
+    job["degree_requirement"] = extract_degree_requirements(description)
+    skill_list = extract_skills(description)
+    job["skills"] = ", ".join(skill_list) if skill_list else ""
+    job["work_mode"] = extract_work_mode(description, location)
+    job["job_function"] = extract_job_function(description, title)
+    posting_dt = parse_time_posted(time_posted)
+    job["time_posted_parsed"] = posting_dt.isoformat() if posting_dt else None
+    return job

@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Job Market Live Dashboard</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            margin: 0;
+            padding: 1.5rem;
+            background: #0b1220;
+            color: #f9fafb;
+        }
+
+        h1,
+        h2 {
+            margin-bottom: 0.25rem;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+        }
+
+        h2 {
+            font-size: 1.3rem;
+            margin-top: 1.5rem;
+        }
+
+        .subtitle {
+            color: #9ca3af;
+            font-size: 0.9rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .card {
+            background: #020617;
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid #1f2937;
+        }
+
+        .card h3 {
+            margin: 0 0 0.35rem 0;
+            font-size: 1.05rem;
+        }
+
+        .card small {
+            color: #6b7280;
+            display: block;
+            margin-bottom: 0.8rem;
+        }
+
+        .overview-grid {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .stat-pill {
+            flex: 1 1 120px;
+            background: radial-gradient(circle at top left, #0ea5e9, #1e293b);
+            border-radius: 999px;
+            padding: 0.75rem 1rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #e5e7eb;
+            opacity: 0.9;
+        }
+
+        .stat-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 0.25rem;
+        }
+
+        svg {
+            width: 100%;
+            height: 280px;
+            overflow: visible;
+        }
+
+        .axis path,
+        .axis line {
+            stroke: #4b5563;
+        }
+
+        .axis text {
+            fill: #9ca3af;
+            font-size: 11px;
+        }
+
+        .line {
+            fill: none;
+            stroke-width: 2.3px;
+        }
+
+        .bar {
+            shape-rendering: crispEdges;
+        }
+
+        .legend {
+            font-size: 0.75rem;
+            fill: #9ca3af;
+        }
+
+        .error-msg {
+            color: #f97373;
+            font-size: 0.85rem;
+        }
+
+        a {
+            color: #38bdf8;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Job Market Live Dashboard</h1>
+    <div class="subtitle">
+        Historical trends (all collected jobs) on the left • Last 7 days snapshot on the right.
+    </div>
+
+    <!-- Overview row -->
+    <div class="card" id="overview-card">
+        <h3>Overview</h3>
+        <small>Summary of all jobs in DuckDB (<code>jobs</code> table)</small>
+        <div class="overview-grid" id="overview-stats">
+            <!-- Filled by JS -->
+        </div>
+        <div id="overview-error" class="error-msg"></div>
+    </div>
+
+    <div class="grid">
+        <!-- Left: historical trends -->
+        <div>
+            <div class="card">
+                <h3>Daily job postings</h3>
+                <small>Last 180 days (all functions)</small>
+                <div id="chart-daily"></div>
+            </div>
+
+            <div class="card">
+                <h3>Job function distribution (all time)</h3>
+                <small>Based on <code>job_function</code> classification</small>
+                <div id="chart-func-all"></div>
+            </div>
+        </div>
+
+        <!-- Right: last 7 days snapshot -->
+        <div>
+            <div class="card">
+                <h3>Job function (last 7 days)</h3>
+                <small>Rolling 7-day window</small>
+                <div id="chart-func-7d"></div>
+            </div>
+
+            <div class="card">
+                <h3>Work mode (last 7 days)</h3>
+                <small>Remote vs Hybrid vs On-site</small>
+                <div id="chart-workmode-7d"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // If FastAPI is on default Uvicorn port:
+        const API_BASE = "http://127.0.0.1:8000";
+
+        // ------------- Helpers -------------
+        function renderError(containerId, msg) {
+            const el = document.getElementById(containerId);
+            if (el) el.textContent = msg;
+        }
+
+        // ------------- Overview fetch -------------
+        async function loadOverview() {
+            try {
+                const res = await fetch(`${API_BASE}/api/overview`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+
+                const container = d3.select("#overview-stats");
+                container.selectAll("*").remove();
+
+                const stats = [
+                    { label: "Total Jobs", value: data.total_jobs },
+                    { label: "Companies", value: data.unique_companies },
+                    { label: "Locations", value: data.unique_locations },
+                    { label: "Earliest Posting", value: data.earliest_posting?.slice(0, 10) || "N/A" },
+                    { label: "Latest Posting", value: data.latest_posting?.slice(0, 10) || "N/A" },
+                ];
+
+                const pills = container.selectAll(".stat-pill")
+                    .data(stats)
+                    .enter()
+                    .append("div")
+                    .attr("class", "stat-pill");
+
+                pills.append("div")
+                    .attr("class", "stat-label")
+                    .text(d => d.label.toUpperCase());
+
+                pills.append("div")
+                    .attr("class", "stat-value")
+                    .text(d => d.value);
+            } catch (err) {
+                console.error("Error loading overview", err);
+                renderError("overview-error", "Failed to load overview stats.");
+            }
+        }
+
+        // ------------- Line chart: daily counts -------------
+        function drawDailyLineChart(containerId, data) {
+            const container = d3.select(`#${containerId}`);
+            container.selectAll("*").remove();
+
+            if (!data || data.length === 0) {
+                container.append("div").attr("class", "error-msg").text("No data.");
+                return;
+            }
+
+            const parseDate = d => new Date(d.day);
+            data.forEach(d => {
+                d.date = parseDate(d);
+                d.job_count = +d.job_count;
+            });
+
+            const margin = { top: 20, right: 20, bottom: 35, left: 45 };
+            const width = container.node().clientWidth || 600;
+            const height = 260;
+
+            const svg = container.append("svg")
+                .attr("width", width)
+                .attr("height", height);
+
+            const innerWidth = width - margin.left - margin.right;
+            const innerHeight = height - margin.top - margin.bottom;
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const x = d3.scaleUtc()
+                .domain(d3.extent(data, d => d.date))
+                .range([0, innerWidth]);
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.job_count) || 1])
+                .nice()
+                .range([innerHeight, 0]);
+
+            const xAxis = d3.axisBottom(x)
+                .ticks(6)
+                .tickFormat(d3.timeFormat("%b %d"));
+
+            const yAxis = d3.axisLeft(y).ticks(5);
+
+            g.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0,${innerHeight})`)
+                .call(xAxis);
+
+            g.append("g")
+                .attr("class", "axis")
+                .call(yAxis);
+
+            const line = d3.line()
+                .x(d => x(d.date))
+                .y(d => y(d.job_count))
+                .curve(d3.curveMonotoneX);
+
+            g.append("path")
+                .datum(data)
+                .attr("class", "line")
+                .attr("stroke", "#38bdf8")
+                .attr("d", line);
+
+            // small fading dots
+            g.selectAll("circle.point")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("class", "point")
+                .attr("cx", d => x(d.date))
+                .attr("cy", d => y(d.job_count))
+                .attr("r", 2)
+                .attr("fill", "#e5e7eb")
+                .attr("opacity", 0.8);
+        }
+
+        async function loadDailyCounts() {
+            try {
+                const res = await fetch(`${API_BASE}/api/daily_counts?days=180`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                drawDailyLineChart("chart-daily", data);
+            } catch (err) {
+                console.error("Error loading daily counts", err);
+                const container = d3.select("#chart-daily");
+                container.append("div")
+                    .attr("class", "error-msg")
+                    .text("Failed to load daily counts.");
+            }
+        }
+
+        // ------------- Bar chart helper -------------
+        function drawBarChart(containerId, data, { xKey, yKey, color = "#4ade80", maxBars = null } = {}) {
+            const container = d3.select(`#${containerId}`);
+            container.selectAll("*").remove();
+
+            if (!data || data.length === 0) {
+                container.append("div").attr("class", "error-msg").text("No data.");
+                return;
+            }
+
+            // Optionally limit number of bars (for readability)
+            if (maxBars && data.length > maxBars) {
+                data = data.slice(0, maxBars);
+            }
+
+            const margin = { top: 20, right: 20, bottom: 70, left: 55 };
+            const width = container.node().clientWidth || 500;
+            const height = 260;
+
+            const svg = container.append("svg")
+                .attr("width", width)
+                .attr("height", height);
+
+            const innerWidth = width - margin.left - margin.right;
+            const innerHeight = height - margin.top - margin.bottom;
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const x = d3.scaleBand()
+                .domain(data.map(d => d[xKey]))
+                .range([0, innerWidth])
+                .padding(0.15);
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d[yKey]) || 1])
+                .nice()
+                .range([innerHeight, 0]);
+
+            const xAxis = d3.axisBottom(x)
+                .tickFormat(d => d.length > 15 ? d.slice(0, 13) + "…" : d);
+
+            const yAxis = d3.axisLeft(y).ticks(5);
+
+            g.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0,${innerHeight})`)
+                .call(xAxis)
+                .selectAll("text")
+                .attr("transform", "rotate(-35)")
+                .style("text-anchor", "end");
+
+            g.append("g")
+                .attr("class", "axis")
+                .call(yAxis);
+
+            g.selectAll(".bar")
+                .data(data)
+                .enter()
+                .append("rect")
+                .attr("class", "bar")
+                .attr("x", d => x(d[xKey]))
+                .attr("y", d => y(d[yKey]))
+                .attr("width", x.bandwidth())
+                .attr("height", d => innerHeight - y(d[yKey]))
+                .attr("fill", color)
+                .attr("opacity", 0.9);
+        }
+
+        // ------------- Jobs by function (all time + 7 days) -------------
+        async function loadJobsByFunctionAll() {
+            try {
+                const res = await fetch(`${API_BASE}/api/jobs_by_function`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                data.forEach(d => d.count = +d.count);
+                drawBarChart("chart-func-all", data, {
+                    xKey: "job_function",
+                    yKey: "count",
+                    color: "#a855f7",
+                    maxBars: 15
+                });
+            } catch (err) {
+                console.error("Error loading jobs_by_function all", err);
+                d3.select("#chart-func-all")
+                    .append("div")
+                    .attr("class", "error-msg")
+                    .text("Failed to load job function data.");
+            }
+        }
+
+        async function loadJobsByFunction7d() {
+            try {
+                const res = await fetch(`${API_BASE}/api/jobs_by_function?days=7`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                data.forEach(d => d.count = +d.count);
+                drawBarChart("chart-func-7d", data, {
+                    xKey: "job_function",
+                    yKey: "count",
+                    color: "#22c55e",
+                    maxBars: 12
+                });
+            } catch (err) {
+                console.error("Error loading jobs_by_function 7d", err);
+                d3.select("#chart-func-7d")
+                    .append("div")
+                    .attr("class", "error-msg")
+                    .text("Failed to load recent job function data.");
+            }
+        }
+
+        // ------------- Work mode (7 days) -------------
+        async function loadWorkMode7d() {
+            try {
+                const res = await fetch(`${API_BASE}/api/work_mode?days=7`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                data.forEach(d => d.count = +d.count);
+                drawBarChart("chart-workmode-7d", data, {
+                    xKey: "work_mode",
+                    yKey: "count",
+                    color: "#f97316",
+                    maxBars: 5
+                });
+            } catch (err) {
+                console.error("Error loading work_mode 7d", err);
+                d3.select("#chart-workmode-7d")
+                    .append("div")
+                    .attr("class", "error-msg")
+                    .text("Failed to load work mode data.");
+            }
+        }
+
+        // ------------- Kick everything off -------------
+        loadOverview();
+        loadDailyCounts();
+        loadJobsByFunctionAll();
+        loadJobsByFunction7d();
+        loadWorkMode7d();
+    </script>
+</body>
+
+</html>
