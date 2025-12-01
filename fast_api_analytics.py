@@ -8,17 +8,16 @@ import duckdb
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
-
 DB_PATH = Path("data/jobs.duckdb")
 
 app = FastAPI(title="Job Market Analytics API")
 
-# ------------------------------------------------------------------
-# CORS – keep it permissive for now (you can tighten later)
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
+# CORS – permissive so GitHub Pages can talk to Render
+# -------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],         
+    allow_origins=["*"],       # you can tighten this later
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -26,19 +25,24 @@ app.add_middleware(
 
 
 def get_conn():
+    """Open a read-only connection to the DuckDB file."""
     if not DB_PATH.exists():
         raise RuntimeError(f"DuckDB file {DB_PATH} does not exist.")
     return duckdb.connect(str(DB_PATH), read_only=True)
 
 
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
 # Helpers
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
 def friendly_age(dt: Optional[datetime]) -> Optional[str]:
-    """Turn a timestamp into '2 days ago' style text."""
+    """
+    Turn a datetime into '2 days ago' style text.
+    Returns None if the input is missing or not a datetime.
+    """
     if dt is None or not isinstance(dt, datetime):
         return None
 
+    # Treat naive timestamps as UTC
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
 
@@ -63,12 +67,13 @@ def friendly_age(dt: Optional[datetime]) -> Optional[str]:
 
 
 def df_to_records(df) -> List[Dict[str, Any]]:
+    """Convert a pandas DataFrame to a list of dict records."""
     return df.to_dict(orient="records")
 
 
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
 # 1) Overview
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
 @app.get("/api/overview")
 def overview():
     conn = get_conn()
@@ -94,13 +99,14 @@ def overview():
     }
 
 
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
 # 2) Jobs by function
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
 @app.get("/api/jobs_by_function")
 def jobs_by_function(days: Optional[int] = None):
     """
-    If days is provided, filter to last `days` days. Otherwise, use all history.
+    Jobs grouped by job_function.
+    If days is provided, filter to last `days` based on time_posted_parsed.
     """
     conn = get_conn()
     if days is None:
@@ -132,11 +138,15 @@ def jobs_by_function(days: Optional[int] = None):
     return df_to_records(df)
 
 
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
 # 3) Work mode distribution
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
 @app.get("/api/work_mode")
 def work_mode(days: Optional[int] = None):
+    """
+    Jobs grouped by work_mode (Remote / Hybrid / On-site / Unknown).
+    If days is provided, filter by time_posted_parsed.
+    """
     conn = get_conn()
     if days is None:
         df = conn.execute(
@@ -167,9 +177,9 @@ def work_mode(days: Optional[int] = None):
     return df_to_records(df)
 
 
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
 # 4) Top skills (comma-split)
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
 @app.get("/api/top_skills")
 def top_skills(limit: int = 30, days: Optional[int] = None):
     """
@@ -212,11 +222,14 @@ def top_skills(limit: int = 30, days: Optional[int] = None):
     return df_to_records(df)
 
 
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
 # 5) Daily counts (for 180-day line chart)
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
 @app.get("/api/daily_counts")
 def daily_counts(days: int = 180):
+    """
+    Number of jobs by posting day, based on time_posted_parsed.
+    """
     conn = get_conn()
     cutoff = datetime.now() - timedelta(days=days)
     df = conn.execute(
@@ -237,14 +250,14 @@ def daily_counts(days: int = 180):
     return df_to_records(df)
 
 
-# ------------------------------------------------------------------
-# 6) Hourly counts (last N hours, default 24)
-# ------------------------------------------------------------------
+# -------------------------------------------------------------
+# 6) Hourly counts – based on time_posted_parsed
+# -------------------------------------------------------------
 @app.get("/api/hourly_counts")
 def hourly_counts(hours: int = 24):
     """
-    Jobs per hour for the last `hours` hours.
-    This drives your 'past 24 hours' bubble trend.
+    Jobs per hour for the last `hours` hours,
+    based on time_posted_parsed.
     """
     conn = get_conn()
     cutoff = datetime.now() - timedelta(hours=hours)
@@ -266,53 +279,51 @@ def hourly_counts(hours: int = 24):
     return df_to_records(df)
 
 
-# ------------------------------------------------------------------
-# 7) Map + Beeswarm jobs  (robust against missing geo_locations)
-# ------------------------------------------------------------------
-def _raw_beeswarm_query(limit: int, days: int):
+# -------------------------------------------------------------
+# 7) Map + Beeswarm jobs (last N hours, default 24)
+# -------------------------------------------------------------
+def _raw_beeswarm_query(limit: int, hours: int):
     """
     Shared query used by /api/beeswarm_jobs and /api/map_jobs.
 
-    Tries a rich schema with geo_locations; if that fails
-    (e.g., table/columns not present yet), falls back to a
-    simpler query with NULL latitude/longitude.
+    Returns jobs whose time_posted_parsed is within the last `hours` hours.
     """
     conn = get_conn()
-    cutoff = datetime.now() - timedelta(days=days)
+    cutoff = datetime.now() - timedelta(hours=hours)
 
     try:
         # Preferred query: join with geo_locations for lat/lon
         df = conn.execute(
             """
             SELECT
-            j.job_id,
-            j.job_title,
-            j.job_description AS summary,
-            j.company_name,
-            j.location,
-            COALESCE(j.job_function, 'Unknown') AS job_function,
-            COALESCE(j.industry, '') AS industry,
-            j.skills AS skills,
-            j.degree_qualifications AS degree_qualifications,
-            j.time_posted_parsed,
-            j.job_link AS job_link,
-            j.num_applicants AS num_applicants,
-            j.work_mode,
-            g.latitude,
-            g.longitude
+              j.job_id,
+              j.job_title,
+              j.job_description              AS summary,
+              j.company_name,
+              j.location,
+              j.job_function                 AS "Job Function",
+              ''                             AS "Industries",          -- placeholder
+              j.skills                       AS skills_desired,
+              j.degree_requirement           AS degree_qualifications,
+              j.time_posted_parsed,
+              j.application_link,
+              j.application_link             AS job_link,
+              j.num_applicants_int           AS num_applicants,
+              j.work_mode,
+              g.latitude,
+              g.longitude
             FROM jobs AS j
             LEFT JOIN geo_locations AS g
-            ON j.location = g.location
+              ON j.location = g.location
             WHERE j.time_posted_parsed IS NOT NULL
-            AND j.time_posted_parsed >= ?
+              AND j.time_posted_parsed >= ?
             ORDER BY j.time_posted_parsed DESC
             LIMIT ?;
             """,
             [cutoff, limit],
         ).fetchdf()
-
     except duckdb.Error as e:
-        # Fallback: no geo_locations table/columns yet
+        # Fallback if geo_locations is missing
         print(f"[beeswarm] WARNING: falling back without geo_locations: {e}")
         df = conn.execute(
             """
@@ -354,18 +365,21 @@ def _raw_beeswarm_query(limit: int, days: int):
 @app.get("/api/beeswarm_jobs")
 def beeswarm_jobs(
     limit: int = Query(2000, ge=1, le=5000),
-    days: int = Query(365, ge=1, le=730),
+    hours: int = Query(24, ge=1, le=24 * 7),
 ):
-    """Primary endpoint used by beeswarm + map."""
-    return _raw_beeswarm_query(limit=limit, days=days)
+    """
+    Primary endpoint used by beeswarm + map.
+    Returns jobs posted within the last `hours` hours.
+    """
+    return _raw_beeswarm_query(limit=limit, hours=hours)
 
 
 @app.get("/api/map_jobs")
 def map_jobs_alias(
     limit: int = Query(2000, ge=1, le=5000),
-    days: int = Query(365, ge=1, le=730),
+    hours: int = Query(24, ge=1, le=24 * 7),
 ):
     """
     Alias so the frontend can call /api/map_jobs or /api/beeswarm_jobs.
     """
-    return _raw_beeswarm_query(limit=limit, days=days)
+    return _raw_beeswarm_query(limit=limit, hours=hours)
