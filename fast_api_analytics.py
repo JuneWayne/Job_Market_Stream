@@ -17,7 +17,7 @@ app = FastAPI(title="Job Market Analytics API")
 # ------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # during dev; later restrict to your domains
+    allow_origins=["*"],         
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -271,38 +271,70 @@ def hourly_counts(hours: int = 24):
 def _raw_beeswarm_query(limit: int, days: int):
     """
     Shared query used by /api/beeswarm_jobs and /api/map_jobs.
+
+    This is defensive about column names: it tries a rich schema first
+    (with job_url + latitude/longitude) and falls back to a minimal
+    schema if those columns do not exist.
     """
     conn = get_conn()
     cutoff = datetime.now() - timedelta(days=days)
 
-    df = conn.execute(
-        """
-        SELECT
-          job_title,
-          company_name,
-          location,
-          time_posted_parsed,
-          num_applicants,
-          work_mode,
-          job_function,
-          industry,
-          skills               AS skills_desired,
-          degree_qualifications,
-          summary,
-          job_url              AS job_link,
-          latitude,
-          longitude
-        FROM jobs
-        WHERE time_posted_parsed IS NOT NULL
-          AND time_posted_parsed >= ?
-          AND latitude IS NOT NULL
-          AND longitude IS NOT NULL
-        ORDER BY time_posted_parsed DESC
-        LIMIT ?;
-        """,
-        [cutoff, limit],
-    ).fetchdf()
-    conn.close()
+    # Try: job_url + latitude/longitude
+    try:
+        df = conn.execute(
+            """
+            SELECT
+              job_title,
+              company_name,
+              location,
+              time_posted_parsed,
+              num_applicants,
+              work_mode,
+              job_function,
+              industry,
+              skills               AS skills_desired,
+              degree_qualifications,
+              summary,
+              job_url              AS job_link,
+              latitude,
+              longitude
+            FROM jobs
+            WHERE time_posted_parsed IS NOT NULL
+              AND time_posted_parsed >= ?
+            ORDER BY time_posted_parsed DESC
+            LIMIT ?;
+            """,
+            [cutoff, limit],
+        ).fetchdf()
+    except duckdb.Error:
+        # Fallback: no job_url / latitude / longitude columns
+        df = conn.execute(
+            """
+            SELECT
+              job_title,
+              company_name,
+              location,
+              time_posted_parsed,
+              num_applicants,
+              work_mode,
+              job_function,
+              industry,
+              skills               AS skills_desired,
+              degree_qualifications,
+              summary,
+              NULL                 AS job_link,
+              NULL                 AS latitude,
+              NULL                 AS longitude
+            FROM jobs
+            WHERE time_posted_parsed IS NOT NULL
+              AND time_posted_parsed >= ?
+            ORDER BY time_posted_parsed DESC
+            LIMIT ?;
+            """,
+            [cutoff, limit],
+        ).fetchdf()
+    finally:
+        conn.close()
 
     df["time_posted"] = df["time_posted_parsed"].apply(friendly_age)
     df["time_posted_parsed"] = df["time_posted_parsed"].astype(str)
@@ -327,3 +359,4 @@ def map_jobs_alias(
     Alias so the frontend can call /api/map_jobs or /api/beeswarm_jobs.
     """
     return _raw_beeswarm_query(limit=limit, days=days)
+
