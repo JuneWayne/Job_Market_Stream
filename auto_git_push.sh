@@ -1,38 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Branch to push to
 BRANCH="${GIT_BRANCH:-main}"
+GIT_USER_NAME="${GIT_USER_NAME:-Job Market Bot}"
+GIT_USER_EMAIL="${GIT_USER_EMAIL:-bot@example.com}"
 
-# Configure git identity inside the container
-git config user.name  "${GIT_USER_NAME:-Job Bot}"
-git config user.email "${GIT_USER_EMAIL:-bot@example.com}"
+git config user.name  "${GIT_USER_NAME}"
+git config user.email "${GIT_USER_EMAIL}"
 
-# Stage only the artifacts you care about
-# Adjust paths if needed
-git add data/ jobs.duckdb || true
+while true; do
+  echo "[auto_push] Checking for changes..."
 
-# If nothing changed, exit quietly
-if git diff --cached --quiet; then
-  echo "[auto_push] No changes to commit."
-  exit 0
-fi
+  # Stage artifacts
+  git add data/ || true
 
-COMMIT_MSG="Auto-update DuckDB snapshot $(date -Iseconds)"
+  if git diff --cached --quiet; then
+    echo "[auto_push] No changes to commit."
+  else
+    COMMIT_MSG="Auto-update DuckDB snapshot $(date -Iseconds)"
+    echo "[auto_push] Committing with message: $COMMIT_MSG"
+    git commit -m "$COMMIT_MSG" || echo "[auto_push] Nothing to commit (race)."
 
-echo "[auto_push] Committing with message: $COMMIT_MSG"
-git commit -m "$COMMIT_MSG" || {
-  echo "[auto_push] Nothing to commit (race)."
-  exit 0
-}
+    echo "[auto_push] Pushing..."
+    if [ -n "${GIT_PAT:-}" ] && [ -n "${GIT_REMOTE_REPO:-}" ]; then
+      git push "https://${GIT_PAT}@github.com/${GIT_REMOTE_REPO}.git" "$BRANCH" || echo "[auto_push] Push failed."
+    else
+      git push origin "$BRANCH" || echo "[auto_push] Push failed (origin)."
+    fi
+  fi
 
-echo "[auto_push] Pushing..."
-
-# Push using PAT if provided
-if [ -n "${GIT_PAT:-}" ] && [ -n "${GIT_REMOTE_REPO:-}" ]; then
-  git push "https://${GIT_PAT}@github.com/${GIT_REMOTE_REPO}.git" "$BRANCH"
-else
-  git push origin "$BRANCH"
-fi
-
-echo "[auto_push] Done."
+  echo "[auto_push] Sleeping 3600s..."
+  sleep 3600
+done
