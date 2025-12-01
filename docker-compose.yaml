@@ -83,10 +83,11 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: ingestor
+    working_dir: /app
     volumes:
       - .:/app
     environment:
-      - INTERVAL_SECONDS=3600
+      - INTERVAL_SECONDS=1800
       - GIT_USER_NAME=${GIT_USER_NAME}
       - GIT_USER_EMAIL=${GIT_USER_EMAIL}
       - GIT_BRANCH=main
@@ -94,4 +95,4 @@ services:
       - GIT_REMOTE_REPO=${GIT_REMOTE_REPO}
     depends_on:
       - consumer
-    command: ["./auto_git_push.sh"]
+    command: ["bash", "./auto_git_push.sh"]
