@@ -2,7 +2,7 @@
 import duckdb
 from pathlib import Path
 import logging
-
+from geo_encode import update_geo_locations
 DATA_CSV = Path("data/parsed_jobs.csv")
 DB_PATH = Path("data/jobs.duckdb")
 
@@ -100,7 +100,7 @@ def main():
     conn.execute("DROP TABLE jobs")
     conn.execute("ALTER TABLE jobs_dedup RENAME TO jobs")
 
-    # 3) Optional: a sorted view/table built from *deduped* jobs
+    # 3) sorted view/table built from *deduped* jobs
     conn.execute(
         """
         CREATE OR REPLACE TABLE jobs_sorted AS
@@ -114,6 +114,8 @@ def main():
     logger.info("Loaded %s into %s as table 'jobs'.", DATA_CSV, DB_PATH)
 
     conn.close()
+    update_geo_locations()
+    logger.info("Geo locations table updated.")
 
 
 def hourly_ingestion(interval_seconds=1800):

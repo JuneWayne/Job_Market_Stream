@@ -8,6 +8,7 @@ import duckdb
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
+
 DB_PATH = Path("data/jobs.duckdb")
 
 app = FastAPI(title="Job Market Analytics API")
@@ -266,14 +267,13 @@ def hourly_counts(hours: int = 24):
 
 
 # ------------------------------------------------------------------
-# 7) Map + Beeswarm jobs  (aligned with current DuckDB schema)
+# 7) Map + Beeswarm jobs  (uses geo_locations for lat/lon)
 # ------------------------------------------------------------------
 def _raw_beeswarm_query(limit: int, days: int):
     """
     Shared query used by /api/beeswarm_jobs and /api/map_jobs.
 
-    Uses only the columns that actually exist in `jobs` and aliases them
-    to the names the frontend expects (e.g. num_applicants, skills_desired).
+    It joins jobs with geo_locations on `location` to get latitude/longitude.
     """
     conn = get_conn()
     cutoff = datetime.now() - timedelta(days=days)
@@ -281,31 +281,34 @@ def _raw_beeswarm_query(limit: int, days: int):
     df = conn.execute(
         """
         SELECT
-          job_id,
-          job_title,
-          job_description              AS summary,
-          company_name,
-          location,
-          job_function                 AS "Job Function",
-          ''                           AS "Industries",          -- placeholder
-          skills                       AS skills_desired,
-          degree_requirement           AS degree_qualifications,
-          time_posted_parsed,
-          application_link,
-          application_link             AS job_link,
-          num_applicants_int           AS num_applicants,
-          work_mode
-        FROM jobs
-        WHERE time_posted_parsed IS NOT NULL
-          AND time_posted_parsed >= ?
-        ORDER BY time_posted_parsed DESC
+          j.job_id,
+          j.job_title,
+          j.job_description              AS summary,
+          j.company_name,
+          j.location,
+          j.job_function                 AS "Job Function",
+          ''                             AS "Industries",          -- placeholder
+          j.skills                       AS skills_desired,
+          j.degree_requirement           AS degree_qualifications,
+          j.time_posted_parsed,
+          j.application_link,
+          j.application_link             AS job_link,
+          j.num_applicants_int           AS num_applicants,
+          j.work_mode,
+          g.latitude,
+          g.longitude
+        FROM jobs AS j
+        LEFT JOIN geo_locations AS g
+          ON j.location = g.location
+        WHERE j.time_posted_parsed IS NOT NULL
+          AND j.time_posted_parsed >= ?
+        ORDER BY j.time_posted_parsed DESC
         LIMIT ?;
         """,
         [cutoff, limit],
     ).fetchdf()
     conn.close()
 
-    # Human-readable age + JSON-friendly timestamps
     df["time_posted"] = df["time_posted_parsed"].apply(friendly_age)
     df["time_posted_parsed"] = df["time_posted_parsed"].astype(str)
 
@@ -330,4 +333,3 @@ def map_jobs_alias(
     Alias so the frontend can call /api/map_jobs or /api/beeswarm_jobs.
     """
     return _raw_beeswarm_query(limit=limit, days=days)
-
