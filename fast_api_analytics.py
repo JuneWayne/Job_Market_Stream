@@ -272,72 +272,104 @@ def _raw_beeswarm_query(limit: int, days: int):
     """
     Shared query used by /api/beeswarm_jobs and /api/map_jobs.
 
-    This is defensive about column names: it tries a rich schema first
-    (with job_url + latitude/longitude) and falls back to a minimal
-    schema if those columns do not exist.
+    It inspects the DuckDB schema and only selects columns that exist.
+    Missing columns are returned as NULL but aliased to the names that
+    the frontend expects (skills_desired, job_link, latitude, longitude).
     """
     conn = get_conn()
     cutoff = datetime.now() - timedelta(days=days)
 
-    # Try: job_url + latitude/longitude
-    try:
-        df = conn.execute(
-            """
-            SELECT
-              job_title,
-              company_name,
-              location,
-              time_posted_parsed,
-              num_applicants,
-              work_mode,
-              job_function,
-              industry,
-              skills               AS skills_desired,
-              degree_qualifications,
-              summary,
-              job_url              AS job_link,
-              latitude,
-              longitude
-            FROM jobs
-            WHERE time_posted_parsed IS NOT NULL
-              AND time_posted_parsed >= ?
-            ORDER BY time_posted_parsed DESC
-            LIMIT ?;
-            """,
-            [cutoff, limit],
-        ).fetchdf()
-    except duckdb.Error:
-        # Fallback: no job_url / latitude / longitude columns
-        df = conn.execute(
-            """
-            SELECT
-              job_title,
-              company_name,
-              location,
-              time_posted_parsed,
-              num_applicants,
-              work_mode,
-              job_function,
-              industry,
-              skills               AS skills_desired,
-              degree_qualifications,
-              summary,
-              NULL                 AS job_link,
-              NULL                 AS latitude,
-              NULL                 AS longitude
-            FROM jobs
-            WHERE time_posted_parsed IS NOT NULL
-              AND time_posted_parsed >= ?
-            ORDER BY time_posted_parsed DESC
-            LIMIT ?;
-            """,
-            [cutoff, limit],
-        ).fetchdf()
-    finally:
-        conn.close()
+    # Look at the current columns in the jobs table
+    cols = {
+        row[1] for row in conn.execute("PRAGMA table_info('jobs');").fetchall()
+    }
 
-    df["time_posted"] = df["time_posted_parsed"].apply(friendly_age)
-    df["time_posted_parsed"] = df["time_posted_parsed"].astype(str)
+    def has(col: str) -> bool:
+        return col in cols
+
+    select_parts: List[str] = []
+
+    # Required / very likely columns
+    select_parts.append("job_title" if has("job_title") else "NULL AS job_title")
+    select_parts.append("company_name" if has("company_name") else "NULL AS company_name")
+    select_parts.append("location" if has("location") else "NULL AS location")
+    select_parts.append(
+        "time_posted_parsed"
+        if has("time_posted_parsed")
+        else "NULL AS time_posted_parsed"
+    )
+    select_parts.append(
+        "num_applicants"
+        if has("num_applicants")
+        else "NULL AS num_applicants"
+    )
+    select_parts.append("work_mode" if has("work_mode") else "NULL AS work_mode")
+    select_parts.append(
+        "job_function" if has("job_function") else "NULL AS job_function"
+    )
+    select_parts.append("industry" if has("industry") else "NULL AS industry")
+
+    # Skills → alias to skills_desired
+    if has("skills_desired"):
+        select_parts.append("skills_desired")
+    elif has("skills"):
+        select_parts.append("skills AS skills_desired")
+    else:
+        select_parts.append("NULL AS skills_desired")
+
+    # Degree + summary
+    select_parts.append(
+        "degree_qualifications"
+        if has("degree_qualifications")
+        else "NULL AS degree_qualifications"
+    )
+    select_parts.append("summary" if has("summary") else "NULL AS summary")
+
+    # Job URL → alias to job_link
+    if has("job_link"):
+        select_parts.append("job_link")
+    elif has("job_url"):
+        select_parts.append("job_url AS job_link")
+    else:
+        select_parts.append("NULL AS job_link")
+
+    # Latitude / longitude
+    select_parts.append("latitude" if has("latitude") else "NULL AS latitude")
+    select_parts.append("longitude" if has("longitude") else "NULL AS longitude")
+
+    select_clause = ",\n          ".join(select_parts)
+
+    # We know from other endpoints that time_posted_parsed exists;
+    # but still guard the WHERE in case schema changes again.
+    if has("time_posted_parsed"):
+        where_clause = """
+        WHERE time_posted_parsed IS NOT NULL
+          AND time_posted_parsed >= ?
+        """
+        params = [cutoff, limit]
+    else:
+        where_clause = ""
+        params = [limit]
+
+    query = f"""
+        SELECT
+          {select_clause}
+        FROM jobs
+        {where_clause}
+        ORDER BY time_posted_parsed DESC
+        LIMIT ?;
+    """
+
+    df = conn.execute(query, params).fetchdf()
+    conn.close()
+
+    # Add friendly age + make timestamps JSON-friendly
+    if "time_posted_parsed" in df.columns:
+        df["time_posted"] = df["time_posted_parsed"].apply(friendly_age)
+        df["time_posted_parsed"] = df["time_posted_parsed"].astype(str)
+    else:
+        df["time_posted"] = None
+
     return df_to_records(df)
 
 
