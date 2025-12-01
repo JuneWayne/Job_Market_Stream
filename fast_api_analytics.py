@@ -1,3 +1,5 @@
+# fast_api_analytics.py
+
 from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, Query
@@ -11,11 +13,11 @@ DB_PATH = Path("data/jobs.duckdb")
 app = FastAPI(title="Job Market Analytics API")
 
 # ------------------------------------------------------------------
-# CORS – for now, allow everything to kill CORS errors during dev
+# CORS – keep it permissive for now (you can tighten later)
 # ------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          
+    allow_origins=["*"],          # during dev; later restrict to your domains
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,7 +31,7 @@ def get_conn():
 
 
 # ------------------------------------------------------------------
-# Small helpers
+# Helpers
 # ------------------------------------------------------------------
 def friendly_age(dt: Optional[datetime]) -> Optional[str]:
     """Turn a timestamp into '2 days ago' style text."""
@@ -64,7 +66,7 @@ def df_to_records(df) -> List[Dict[str, Any]]:
 
 
 # ------------------------------------------------------------------
-# 1) Overview stats
+# 1) Overview
 # ------------------------------------------------------------------
 @app.get("/api/overview")
 def overview():
@@ -210,7 +212,7 @@ def top_skills(limit: int = 30, days: Optional[int] = None):
 
 
 # ------------------------------------------------------------------
-# 5) Daily counts
+# 5) Daily counts (for 180-day line chart)
 # ------------------------------------------------------------------
 @app.get("/api/daily_counts")
 def daily_counts(days: int = 180):
@@ -239,6 +241,10 @@ def daily_counts(days: int = 180):
 # ------------------------------------------------------------------
 @app.get("/api/hourly_counts")
 def hourly_counts(hours: int = 24):
+    """
+    Jobs per hour for the last `hours` hours.
+    This drives your 'past 24 hours' bubble trend.
+    """
     conn = get_conn()
     cutoff = datetime.now() - timedelta(hours=hours)
     df = conn.execute(
@@ -263,6 +269,9 @@ def hourly_counts(hours: int = 24):
 # 7) Map + Beeswarm jobs
 # ------------------------------------------------------------------
 def _raw_beeswarm_query(limit: int, days: int):
+    """
+    Shared query used by /api/beeswarm_jobs and /api/map_jobs.
+    """
     conn = get_conn()
     cutoff = datetime.now() - timedelta(days=days)
 
@@ -305,7 +314,7 @@ def beeswarm_jobs(
     limit: int = Query(2000, ge=1, le=5000),
     days: int = Query(365, ge=1, le=730),
 ):
-    """Primary endpoint used by map + beeswarm."""
+    """Primary endpoint used by beeswarm + map."""
     return _raw_beeswarm_query(limit=limit, days=days)
 
 
@@ -315,7 +324,6 @@ def map_jobs_alias(
     days: int = Query(365, ge=1, le=730),
 ):
     """
-    Backwards-compatible alias so your frontend can call /api/map_jobs
-    or /api/beeswarm_jobs – they return the same payload.
+    Alias so the frontend can call /api/map_jobs or /api/beeswarm_jobs.
     """
     return _raw_beeswarm_query(limit=limit, days=days)
