@@ -9,29 +9,24 @@ import requests
 
 DB_PATH = Path("data/jobs.duckdb")
 
-NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
-USER_AGENT = "JobMarketStream/1.0 (contact: you@example.com)"  # put your email/domain
-
 
 def get_conn():
     return duckdb.connect(str(DB_PATH))
 
 
 def geocode(location_name: str):
-    """Call Nominatim and return (lat, lon) or (None, None)."""
+    """
+    Call Nominatim and return (lat, lon) or (None, None),
+    using the same style as your original script.
+    """
+    url = "https://nominatim.openstreetmap.org/search"
     params = {
         "q": f"{location_name}, United States",
         "format": "json",
         "limit": 1,
     }
-    resp = requests.get(
-        NOMINATIM_URL,
-        params=params,
-        headers={"User-Agent": USER_AGENT},
-        timeout=10,
-    )
-    resp.raise_for_status()
-    data = resp.json()
+    response = requests.get(url, params=params, headers={"User-Agent": "USMapBot/1.0"})
+    data = response.json()
     if data:
         return float(data[0]["lat"]), float(data[0]["lon"])
     return None, None
@@ -39,14 +34,14 @@ def geocode(location_name: str):
 
 def update_geo_locations():
     """
-    Idempotent: looks at jobs.location, geocodes any NEW locations
+    Looks at jobs.location in DuckDB, geocodes any NEW locations
     not already in geo_locations, and inserts them.
 
     Safe to call at the end of each DuckDB refresh.
     """
     con = get_conn()
 
-    # 1) Ensure table exists
+    # 1) Ensure geo_locations exists
     con.execute(
         """
         CREATE TABLE IF NOT EXISTS geo_locations (
@@ -58,51 +53,48 @@ def update_geo_locations():
     )
 
     # 2) Distinct locations from jobs
-    jobs_locs = (
-        con.execute(
-            "SELECT DISTINCT location FROM jobs WHERE location IS NOT NULL;"
-        )
-        .fetchdf()["location"]
-        .tolist()
-    )
+    jobs_df = con.execute(
+        "SELECT DISTINCT location FROM jobs WHERE location IS NOT NULL;"
+    ).fetchdf()
+    jobs_locs = jobs_df["location"].tolist()
 
-    # 3) Already-geocoded locations to skip
+    # 3) Already-geocoded locations
     existing_df = con.execute("SELECT location FROM geo_locations;").fetchdf()
-    existing = set(existing_df["location"].tolist())
+    existing = set(existing_df["location"].tolist()) if not existing_df.empty else set()
 
     to_geocode = [loc for loc in jobs_locs if loc not in existing]
+
     print(f"[geo] Total distinct locations: {len(jobs_locs)}")
     print(f"[geo] Already geocoded:        {len(existing)}")
     print(f"[geo] Need to geocode:         {len(to_geocode)}")
 
     rows = []
-    for loc in to_geocode:
-        print(f"[geo] Geocoding: {loc} ...")
-        try:
-            lat, lon = geocode(loc)
-        except Exception as e:
-            print(f"[geo]  Error for {loc}: {e}")
-            continue
-
-        # Respect Nominatim rate limits
-        time.sleep(1)
+    for loc_name in to_geocode:
+        print(f"[geo] Geocoding {loc_name}...")
+        lat, lon = geocode(loc_name)
+        time.sleep(1)  # be nice to Nominatim, like in your original script
 
         if lat is not None and lon is not None:
-            rows.append((loc, lat, lon))
+            geo_doc = {
+                "location": loc_name,
+                "latitude": lat,
+                "longitude": lon,
+            }
+            rows.append(geo_doc)
             print(f"[geo]   -> {lat}, {lon}")
         else:
-            print(f"[geo]   Could not geocode: {loc}")
+            print(f"[geo]   Could not geocode: {loc_name}")
 
     if rows:
         df = pd.DataFrame(rows, columns=["location", "latitude", "longitude"])
+        # Insert all new rows into DuckDB
         con.execute("INSERT INTO geo_locations SELECT * FROM df")
-        print(f"[geo] Inserted {len(rows)} new rows into geo_locations.")
+        print(f"[geo] Inserted {len(rows)} geo rows into geo_locations.")
     else:
-        print("[geo] No new locations to insert.")
+        print("[geo] No new geo data to insert.")
 
     con.close()
 
 
 if __name__ == "__main__":
-    # optional: allow this to be run manually, too
     update_geo_locations()
