@@ -137,7 +137,7 @@ def populate_from_mongo(collection_name: Optional[str] = None,
     db = client[MONGO_DB]
     collection = db[collection_name]
 
-    query: Dict[str, Any] = {}  # adjust if you want to filter
+    query: Dict[str, Any] = {}  
 
     logger.info(
         "Starting to stream docs from %s.%s (limit=%s)",

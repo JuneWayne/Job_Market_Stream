@@ -1,17 +1,29 @@
-# duckdub_ingestion.py
+# duckdb_ingestion.py
 import duckdb
 from pathlib import Path
+import logging
 
 DATA_CSV = Path("data/parsed_jobs.csv")
 DB_PATH = Path("data/jobs.duckdb")
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
+)
+logger = logging.getLogger("duckdb_ingestion")
+
+
 def main():
     if not DATA_CSV.exists():
-        raise FileNotFoundError(f"{DATA_CSV} does not exist. Run mongo_populate / consumer first.")
+        raise FileNotFoundError(
+            f"{DATA_CSV} does not exist. Run mongo_populate / consumer first."
+        )
 
     conn = duckdb.connect(str(DB_PATH))
 
-    conn.execute("""
+    # 1) Load CSV into a raw jobs table
+    conn.execute(
+        """
         CREATE OR REPLACE TABLE jobs AS
         WITH raw AS (
             SELECT *
@@ -45,20 +57,85 @@ def main():
 
             work_mode
         FROM raw;
-    """, [str(DATA_CSV)])
+        """,
+        [str(DATA_CSV)],
+    )
 
-    conn.execute("""
+    # 2) Dedup by job_id and keep the "best" row per job_id
+    conn.execute(
+        """
+        CREATE OR REPLACE TABLE jobs_dedup AS
+        WITH ranked AS (
+            SELECT
+                *,
+                ROW_NUMBER() OVER (
+                    PARTITION BY job_id
+                    ORDER BY
+                        -- prefer rows with non-null time_posted_parsed
+                        (time_posted_parsed IS NULL) ASC,
+                        -- then the most recent posting date
+                        time_posted_parsed DESC
+                ) AS rn
+            FROM jobs
+        )
+        SELECT
+            job_id,
+            job_title,
+            job_description,
+            company_name,
+            location,
+            job_function,
+            skills,
+            degree_requirement,
+            time_posted_parsed,
+            application_link,
+            num_applicants_int,
+            work_mode
+        FROM ranked
+        WHERE rn = 1;
+        """
+    )
+
+    # Replace original `jobs` with the deduped version
+    conn.execute("DROP TABLE jobs")
+    conn.execute("ALTER TABLE jobs_dedup RENAME TO jobs")
+
+    # 3) Optional: a sorted view/table built from *deduped* jobs
+    conn.execute(
+        """
         CREATE OR REPLACE TABLE jobs_sorted AS
         SELECT *
         FROM jobs
         ORDER BY time_posted_parsed DESC NULLS LAST;
-    """)
+        """
+    )
 
-    conn.execute("DROP TABLE jobs;")
-    conn.execute("ALTER TABLE jobs_sorted RENAME TO jobs;")
+    logger.info("Deduped `jobs` table created (one row per job_id).")
+    logger.info("Loaded %s into %s as table 'jobs'.", DATA_CSV, DB_PATH)
 
     conn.close()
-    print(f"Loaded {DATA_CSV} into {DB_PATH} as table 'jobs'.")
+
+
+def hourly_ingestion(interval_seconds=3600):
+    """
+    Periodically rebuild DuckDB from parsed_jobs.csv.
+    Set interval_seconds=3600 for "true hourly" runs.
+    """
+    import time
+
+    while True:
+        logger.info("Rebuilding DuckDB from parsed_jobs.csv...")
+        try:
+            main()
+            logger.info("DuckDB rebuild completed.")
+        except Exception:
+            logger.exception("DuckDB rebuild failed.")
+        logger.info("Sleeping %s seconds.", interval_seconds)
+        time.sleep(interval_seconds)
+
 
 if __name__ == "__main__":
-    main()
+    # For Docker continuous loop (currently every 10 minutes)
+    hourly_ingestion(interval_seconds=3600)
+    # If you prefer single-run behavior locally, swap to:
+    # main()

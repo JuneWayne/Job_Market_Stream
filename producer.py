@@ -22,7 +22,7 @@ def run_producer(
     geo_id = "103644278",
     f_tpr = "r86400",
     max_results = 10000,
-) -> None:
+):
     logger.info(
         "Scraping LinkedIn: keywords='%s', location='%s', geo_id=%s, f_tpr=%s, max_results=%d",
         keywords, location, geo_id, f_tpr, max_results
@@ -62,12 +62,18 @@ def run_producer(
         producer.close()
         logger.info("Kafka producer closed.")
 
+def hourly_scraping(interval_hours=1):
+    import time
+    while True:
+        run_producer(
+            keywords="Data Intern",
+            location="United States",
+            geo_id="103644278",
+            f_tpr="r86400",
+            max_results=10000,
+        )
+        logger.info("Sleeping for %d hours before next scrape.", interval_hours)
+        time.sleep(interval_hours * 3600)
 
 if __name__ == "__main__":
-    run_producer(
-        keywords="Data Intern",
-        location="United States",
-        geo_id="103644278",
-        f_tpr="r86400",
-        max_results=10000,
-    )
+    hourly_scraping(interval_hours=1)

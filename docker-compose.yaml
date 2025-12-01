@@ -67,4 +67,33 @@ services:
       - KAFKA_SERVER=redpanda:9092
       - KAFKA_TOPIC=job_postings
     command: ["python", "producer.py"]
-    restart: "no"
+    restart: "unless-stopped"
+
+  duckdb_refresher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - consumer
+    command: ["python", "duckdb_ingestion.py"]
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+
+  ingestor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ingestor
+    volumes:
+      - .:/app
+    environment:
+      - INTERVAL_SECONDS=3600
+      - GIT_USER_NAME=${GIT_USER_NAME}
+      - GIT_USER_EMAIL=${GIT_USER_EMAIL}
+      - GIT_BRANCH=main
+      - GITHUB_PAT=${GITHUB_PAT}
+      - GIT_REMOTE_REPO=${GIT_REMOTE_REPO}
+    depends_on:
+      - consumer
+    command: ["./auto_git_push.sh"]
