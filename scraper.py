@@ -27,7 +27,6 @@ def get_num_applicants(detail_soup):
 
 def extract_application_link(job_soup, job_id):
 
-    # --- 1) Old pattern: <code id="applyUrl"><!-- "https://..." --></code>
     code = job_soup.find("code", id="applyUrl")
     if code:
         comment = code.find(string=lambda s: isinstance(s, Comment))
@@ -40,7 +39,7 @@ def extract_application_link(job_soup, job_id):
     if apply_anchor and apply_anchor.get("href"):
         return apply_anchor["href"]
 
-    # --- 3) Fallback: any anchor whose data-tracking-control-name mentions 'apply-link'
+    # Fallback
     apply_anchor = job_soup.find(
         "a",
         attrs={"data-tracking-control-name": re.compile("apply-link")}

@@ -1,4 +1,3 @@
-# inspect_schema.py
 import duckdb
 from pathlib import Path
 

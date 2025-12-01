@@ -1,4 +1,3 @@
-# storage.py
 import csv
 from pathlib import Path
 
@@ -28,7 +27,7 @@ def append_parsed_job(parsed):
     with OUTPUT_FILE.open("a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
 
-        # Write header only once
+        # Write header
         if not file_exists:
             writer.writeheader()
 

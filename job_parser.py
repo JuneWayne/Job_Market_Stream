@@ -3,6 +3,8 @@ import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+# A script to parse raw job postings into structured data, extract skills and job functions from descriptions 
+
 degree_patterns = [
     ("PhD",      r"\b(ph\.?d\.?|doctorate|doctoral)\b"),
     ("Master",   r"\b(master'?s|m\.?s\.?|msc|graduate degree)\b"),
