@@ -1,23 +1,24 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import duckdb
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
-
-import duckdb
-from fastapi import FastAPI, Query
-from fastapi.middleware.cors import CORSMiddleware
 
 DB_PATH = Path("data/jobs.duckdb")
 
-app = FastAPI(title="Job Analytics API")
+app = FastAPI(title="Job Market Analytics API")
+
+origins = [
+    "https://junewayne.github.io",                  # GitHub Pages root
+    "https://junewayne.github.io/job-market-stream", # site path
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://junewayne.github.io",                   # your GitHub Pages root
-        "https://junewayne.github.io/job-market-stream", # repo site
-        "http://localhost:8000",                         # local testing
-        "http://127.0.0.1:8000",
-    ],
+    allow_origins=origins,
+    # or for testing: allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -379,3 +380,33 @@ def map_locations():
     ).fetchdf()
     conn.close()
     return df_to_records(df)
+
+@app.get("/api/hourly_counts")
+def hourly_counts(hours: int = 24):
+    """
+    Jobs per hour for the last `hours` hours.
+    Used for the 'last 24 hours' bubble trend.
+    """
+    conn = get_conn()
+    now = datetime.now()
+    cutoff = now - timedelta(hours=hours)
+
+    df = conn.execute(
+        """
+        SELECT
+            date_trunc('hour', time_posted_parsed) AS hour,
+            COUNT(*) AS job_count
+        FROM jobs
+        WHERE time_posted_parsed IS NOT NULL
+          AND time_posted_parsed >= ?
+        GROUP BY 1
+        ORDER BY hour;
+        """,
+        [cutoff],
+    ).fetchdf()
+    conn.close()
+
+    # Make timestamps JSON-friendly
+    df["hour"] = df["hour"].astype(str)
+    return df.to_dict(orient="records")
+
