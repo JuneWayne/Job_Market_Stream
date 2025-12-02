@@ -56,12 +56,20 @@ def main():
         scraped_at_clause = "CAST(NULL AS TIMESTAMP WITH TIME ZONE) AS scraped_at"
 
     # Step 1: read the CSV into DuckDB and normalize basic fields / timestamps
+    # Using explicit CSV options to handle messy real-world data
     conn.execute(
         f"""
         CREATE OR REPLACE TABLE jobs AS
         WITH raw AS (
             SELECT *
-            FROM read_csv_auto(?, header=TRUE, all_varchar=TRUE)
+            FROM read_csv(?, 
+                header=TRUE, 
+                all_varchar=TRUE,
+                ignore_errors=TRUE,
+                null_padding=TRUE,
+                quote='"',
+                escape='"'
+            )
         )
         SELECT
             job_id,
