@@ -3,107 +3,168 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>Job Market Live Dashboard</title>
+    <title>Job Market Analytics Dashboard</title>
 
-    <!-- D3 -->
+    <!-- D3.js -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <!-- Chart.js for some visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <!-- Leaflet + MarkerCluster for map -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 
     <style>
-        body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        * {
+            box-sizing: border-box;
             margin: 0;
-            padding: 1.5rem;
-            background: #020617;
-            color: #f9fafb;
+            padding: 0;
         }
 
-        h1,
-        h2 {
-            margin-bottom: 0.25rem;
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #020617 100%);
+            color: #f9fafb;
+            padding: 1.5rem;
+            min-height: 100vh;
         }
 
         h1 {
-            font-size: 1.8rem;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #38bdf8, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         h2 {
-            font-size: 1.3rem;
-            margin-top: 1.5rem;
+            font-size: 1.5rem;
+            margin: 2rem 0 1rem 0;
+            color: #e5e7eb;
         }
 
         .subtitle {
             color: #9ca3af;
-            font-size: 0.9rem;
-            margin-bottom: 1.25rem;
+            font-size: 0.95rem;
+            margin-bottom: 1.5rem;
         }
 
-        .grid {
+        /* Grid Layouts */
+        .dashboard-grid {
             display: grid;
-            grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-            gap: 1.5rem;
-            margin-top: 1rem;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 2rem;
         }
 
+        .two-column-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 1024px) {
+            .two-column-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cards */
         .card {
-            background: #020617;
-            border-radius: 0.75rem;
-            padding: 1rem 1.25rem;
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
-            border: 1px solid #1f2937;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 1rem;
+            padding: 1.25rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 25px 35px -5px rgba(0, 0, 0, 0.2);
+            border-color: rgba(59, 130, 246, 0.3);
         }
 
         .card h3 {
-            margin: 0 0 0.35rem 0;
-            font-size: 1.05rem;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: #f3f4f6;
         }
 
         .card small {
             color: #6b7280;
             display: block;
-            margin-bottom: 0.8rem;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
         }
 
-        .overview-grid {
-            display: flex;
+        /* Pulse Metrics Cards */
+        .pulse-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 1rem;
-            flex-wrap: wrap;
+            margin-bottom: 2rem;
         }
 
-        .stat-pill {
-            flex: 1 1 120px;
-            background: radial-gradient(circle at top left, #0ea5e9, #1e293b);
-            border-radius: 999px;
-            padding: 0.75rem 1rem;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+        .pulse-card {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(168, 85, 247, 0.1));
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 1rem;
+            padding: 1.25rem;
+            position: relative;
+            overflow: hidden;
         }
 
-        .stat-label {
+        .pulse-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6, #a855f7);
+        }
+
+        .pulse-label {
             font-size: 0.75rem;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: #e5e7eb;
-            opacity: 0.9;
+            letter-spacing: 0.1em;
+            color: #9ca3af;
+            margin-bottom: 0.5rem;
         }
 
-        .stat-value {
-            font-size: 1.1rem;
-            font-weight: 600;
+        .pulse-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #f9fafb;
+        }
+
+        .pulse-change {
+            font-size: 0.85rem;
             margin-top: 0.25rem;
         }
 
+        .pulse-change.up {
+            color: #22c55e;
+        }
+
+        .pulse-change.down {
+            color: #ef4444;
+        }
+
+        .pulse-change.stable {
+            color: #6b7280;
+        }
+
+        /* Charts */
         svg {
             width: 100%;
-            height: 280px;
             overflow: visible;
         }
 
@@ -119,1417 +180,1287 @@
 
         .line {
             fill: none;
-            stroke-width: 2.3px;
+            stroke-width: 2.5px;
         }
 
-        .bar {
-            shape-rendering: crispEdges;
+        /* Heatmap */
+        .heatmap-container {
+            position: relative;
         }
 
-        .error-msg {
-            color: #f97373;
-            font-size: 0.85rem;
+        .heatmap-legend {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1rem;
+            font-size: 0.8rem;
         }
 
-        a {
-            color: #38bdf8;
-            text-decoration: none;
+        .heatmap-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
-        /* --- Map + Beeswarm layout --- */
-        .map-beeswarm-grid {
+        .heatmap-legend-box {
+            width: 20px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        /* Skills Network */
+        #skills-network-svg {
+            background: radial-gradient(circle at center, rgba(59, 130, 246, 0.05), transparent);
+        }
+
+        .node {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .node:hover {
+            filter: brightness(1.3);
+        }
+
+        .node-label {
+            font-size: 10px;
+            fill: #e5e7eb;
+            pointer-events: none;
+        }
+
+        .link {
+            stroke: #4b5563;
+            stroke-opacity: 0.3;
+        }
+
+        /* Trending Skills */
+        .trending-grid {
             display: grid;
-            grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-            gap: 1rem;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 0.75rem;
         }
 
+        .trending-skill {
+            background: rgba(31, 41, 55, 0.5);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            border: 1px solid rgba(75, 85, 99, 0.3);
+        }
+
+        .trending-skill-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #f3f4f6;
+            margin-bottom: 0.25rem;
+        }
+
+        .trending-skill-change {
+            font-size: 0.75rem;
+        }
+
+        .trending-skill-change.growing {
+            color: #22c55e;
+        }
+
+        .trending-skill-change.declining {
+            color: #ef4444;
+        }
+
+        .trending-skill-change.stable {
+            color: #6b7280;
+        }
+
+        /* Culture Keywords Cloud */
+        .keywords-cloud {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            padding: 1rem;
+        }
+
+        .keyword-bubble {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(168, 85, 247, 0.2));
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 999px;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+            cursor: default;
+        }
+
+        .keyword-bubble:hover {
+            transform: scale(1.05);
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(168, 85, 247, 0.3));
+        }
+
+        /* Map */
         #map {
             width: 100%;
-            height: 430px;
-            border-radius: 0.75rem;
+            height: 450px;
+            border-radius: 1rem;
             overflow: hidden;
         }
 
-        #map-legend {
+        /* Tooltips */
+        .tooltip {
             position: absolute;
-            bottom: 12px;
-            left: 14px;
-            background: rgba(15, 23, 42, 0.96);
-            padding: 8px 10px;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(59, 130, 246, 0.3);
             border-radius: 0.5rem;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-            font-size: 12px;
+            padding: 0.75rem;
+            font-size: 0.85rem;
+            color: #f9fafb;
+            pointer-events: none;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
         }
 
-        #map-legend h4 {
-            margin: 0 0 4px 0;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .legend-item {
+        /* Loading states */
+        .loading {
             display: flex;
+            justify-content: center;
             align-items: center;
-            margin-bottom: 4px;
+            height: 200px;
+            color: #6b7280;
         }
 
-        .legend-circle {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 4px;
+        .loading::after {
+            content: '⟳';
+            font-size: 2rem;
+            animation: spin 1s linear infinite;
         }
 
-        .legend-circle.low {
-            background: #4A90E2;
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
         }
 
-        .legend-circle.medium {
-            background: #F39C12;
+        /* Error messages */
+        .error-msg {
+            color: #ef4444;
+            font-size: 0.9rem;
+            padding: 1rem;
+            background: rgba(239, 68, 68, 0.1);
+            border-radius: 0.5rem;
+            border: 1px solid rgba(239, 68, 68, 0.3);
         }
 
-        .legend-circle.high {
-            background: #22c55e;
-        }
-
-        .legend-circle.unknown {
-            background: #6b7280;
-        }
-
-        .custom-marker {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            text-align: center;
-            font-size: 13px;
-            font-weight: 600;
-            color: #fff;
-            line-height: 30px;
-            transition: transform .2s;
-            user-select: none;
-        }
-
-        .custom-marker:hover {
-            transform: translateY(-8px) scale(1.08);
-            cursor: pointer;
-        }
-
-        .marker-low {
-            background: #4A90E2;
-        }
-
-        .marker-medium {
-            background: #F39C12;
-        }
-
-        .marker-high {
-            background: #22c55e;
-        }
-
-        .marker-unknown {
-            background: #6b7280;
-        }
-
-        .leaflet-div-icon,
-        .leaflet-marker-icon {
-            background: none !important;
-            border: none !important;
-        }
-
-        /* Beeswarm */
+        /* Beeswarm styles */
         #beeswarm-svg {
             width: 100%;
-            height: 430px;
-        }
-
-        #bs-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 6px;
-        }
-
-        #bs-header .title {
-            font-weight: 600;
-            font-size: 0.95rem;
-            margin-right: auto;
+            height: 450px;
         }
 
         .segmented {
             display: inline-flex;
-            background: #020617;
+            background: rgba(31, 41, 55, 0.5);
             border-radius: 999px;
             padding: 3px;
             gap: 3px;
-            border: 1px solid #1f2937;
         }
 
         .segmented button {
             border: 0;
             background: transparent;
-            padding: 5px 7px;
+            padding: 6px 12px;
             border-radius: 999px;
             cursor: pointer;
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             color: #e5e7eb;
+            transition: all 0.3s ease;
         }
 
         .segmented button.active {
-            background: #111827;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-        }
-
-        #bs-chips {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            max-height: 72px;
-            overflow-y: auto;
-            margin-bottom: 6px;
-        }
-
-        .chip {
-            padding: 4px 9px;
-            border-radius: 999px;
-            font-size: 0.7rem;
-            border: 1px solid #4b5563;
-            cursor: pointer;
-        }
-
-        .chip.active {
-            background: #e5e7eb;
-            color: #020617;
-            border-color: #e5e7eb;
-        }
-
-        .bs-tip {
-            position: absolute;
-            pointer-events: none;
-            z-index: 1000;
-            background: #020617;
-            color: #f9fafb;
-            font-size: 0.75rem;
-            padding: 6px 8px;
-            border-radius: 0.4rem;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
-            opacity: 0;
-            transition: opacity .12s ease;
-            max-width: 260px;
-            line-height: 1.3;
-        }
-
-        .group-label {
-            font-size: 11px;
-            fill: #e5e7eb;
-            paint-order: stroke;
-            stroke: #020617;
-            stroke-width: 4px;
-        }
-
-        .leaflet-marker-icon.dim {
-            filter: grayscale(1) opacity(0.25);
-        }
-
-        /* Latest jobs card */
-        #recent-jobs-list {
-            max-height: 340px;
-            overflow-y: auto;
-            margin-top: 0.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.6rem;
-        }
-
-        .job-row {
-            background: #020617;
-            border-radius: 0.75rem;
-            border: 1px solid #1f2937;
-            padding: 0.6rem 0.8rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-        }
-
-        .job-row-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .job-title {
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-
-        .job-meta {
-            font-size: 0.8rem;
-            color: #9ca3af;
-        }
-
-        .job-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.25rem;
-            margin-top: 0.25rem;
-        }
-
-        .job-tag {
-            font-size: 0.68rem;
-            padding: 2px 6px;
-            border-radius: 999px;
-            border: 1px solid #374151;
-            color: #e5e7eb;
-        }
-
-        .job-link-btn {
-            margin-left: auto;
-            font-size: 0.75rem;
-            padding: 4px 10px;
-            border-radius: 999px;
-            border: none;
-            background: #0ea5e9;
+            background: linear-gradient(135deg, #3b82f6, #a855f7);
             color: white;
-            cursor: pointer;
-            white-space: nowrap;
-        }
-
-        .job-link-btn:hover {
-            background: #38bdf8;
         }
     </style>
 </head>
 
 <body>
-    <h1>Job Market Live Dashboard</h1>
+    <h1>📊 Job Market Analytics Dashboard</h1>
     <div class="subtitle">
-        Historical trends on the left • Recent patterns & live map on the right.
+        Real-time insights powered by advanced analytics • Updated every 3 minutes
     </div>
 
-    <!-- Overview row -->
-    <div class="card" id="overview-card">
-        <h3>Overview</h3>
-        <small>Summary of all jobs in DuckDB (<code>jobs</code> table)</small>
-        <div class="overview-grid" id="overview-stats"></div>
-        <div id="overview-error" class="error-msg"></div>
+    <!-- Pulse Metrics (Real-time KPIs) -->
+    <div class="pulse-grid" id="pulse-metrics">
+        <div class="pulse-card">
+            <div class="pulse-label">Last Hour</div>
+            <div class="pulse-value" id="pulse-last-hour">--</div>
+            <div class="pulse-change" id="pulse-hour-change">Loading...</div>
+        </div>
+        <div class="pulse-card">
+            <div class="pulse-label">Last 24 Hours</div>
+            <div class="pulse-value" id="pulse-24h">--</div>
+            <div class="pulse-change" id="pulse-24h-location">Loading...</div>
+        </div>
+        <div class="pulse-card">
+            <div class="pulse-label">Hottest Function</div>
+            <div class="pulse-value" id="pulse-function" style="font-size: 1.2rem;">--</div>
+            <div class="pulse-change" id="pulse-avg-applicants">Loading...</div>
+        </div>
+        <div class="pulse-card">
+            <div class="pulse-label">Trending Skill</div>
+            <div class="pulse-value" id="pulse-skill" style="font-size: 1.2rem;">--</div>
+            <div class="pulse-change">Most mentioned today</div>
+        </div>
     </div>
 
-    <div class="grid">
-        <!-- Left: historical trends -->
+    <!-- Competition Heatmap -->
+    <div class="card">
+        <h3>🔥 Competition Heatmap - Best Times to Apply</h3>
+        <small>Darker green = fewer applicants (better chance). Darker red = more competition.</small>
+        <div id="competition-heatmap"></div>
+        <div class="heatmap-legend" id="heatmap-legend"></div>
+    </div>
+
+    <!-- Two Column Layout for Historical vs Recent -->
+    <div class="two-column-grid">
+        <!-- Historical Trends -->
         <div>
+            <h2>📈 Historical Trends</h2>
+
             <div class="card">
-                <h3>Daily job postings</h3>
-                <small>Last 180 days (all functions)</small>
+                <h3>Daily Job Postings</h3>
+                <small>180-day trend analysis</small>
                 <div id="chart-daily"></div>
             </div>
 
             <div class="card">
-                <h3>Job function distribution (all time)</h3>
-                <small>Based on <code>job_function</code> classification</small>
+                <h3>Remote Work Evolution</h3>
+                <small>Work mode distribution over time</small>
+                <canvas id="remote-evolution-chart"></canvas>
+            </div>
+
+            <div class="card">
+                <h3>Job Function Distribution</h3>
+                <small>All-time breakdown by function</small>
                 <div id="chart-func-all"></div>
             </div>
         </div>
 
-        <!-- Right: last 7 days + last 24 hours -->
+        <!-- Recent Activity -->
         <div>
+            <h2>⚡ Recent Activity</h2>
+
             <div class="card">
-                <h3>Job function (last 7 days)</h3>
-                <small>Rolling 7-day window</small>
-                <div id="chart-func-7d"></div>
+                <h3>Company Hiring Velocity</h3>
+                <small>Top companies ramping up (last 30 days)</small>
+                <canvas id="company-velocity-chart"></canvas>
             </div>
 
             <div class="card">
-                <h3>Work mode (last 7 days)</h3>
-                <small>Remote vs Hybrid vs On-site</small>
-                <div id="chart-workmode-7d"></div>
+                <h3>Job Lifecycle Funnel</h3>
+                <small>How long jobs stay active</small>
+                <canvas id="lifecycle-chart"></canvas>
             </div>
 
             <div class="card">
-                <h3>New jobs in the last 24 hours</h3>
-                <small>Each bubble is one hour; size = # of jobs. Latest hour is highlighted.</small>
+                <h3>Last 24 Hours Activity</h3>
+                <small>Hourly job posting bubbles</small>
                 <div id="chart-24h-bubbles" style="position: relative;"></div>
             </div>
         </div>
     </div>
 
-    <h2>Live Map & Beeswarm Explorer</h2>
-    <div class="subtitle">
-        Explore where postings are clustered and how they distribute by function, industry,
-        company type, time posted, skills, and degree – only for the most recent jobs.
-    </div>
+    <!-- Skills Section -->
+    <h2>🎯 Skills Intelligence</h2>
 
-    <div class="card">
-        <div class="map-beeswarm-grid">
-            <div style="position: relative;">
-                <div id="map"></div>
-                <div id="map-legend">
-                    <h4>Average applicants</h4>
-                    <div class="legend-item"><span class="legend-circle low"></span> Low</div>
-                    <div class="legend-item"><span class="legend-circle medium"></span> Medium</div>
-                    <div class="legend-item"><span class="legend-circle high"></span> High</div>
-                    <div class="legend-item"><span class="legend-circle unknown"></span> Unknown</div>
-                </div>
-            </div>
-
-            <div>
-                <div id="bs-header">
-                    <div class="title">Jobs Beeswarm (last 24h)</div>
-                    <div class="segmented">
-                        <button data-dim="jobFunction" class="active">Job Function</button>
-                        <button data-dim="industry">Industry</button>
-                        <button data-dim="companyBucket">Companies</button>
-                        <button data-dim="timeBucket">Time Posted</button>
-                        <button data-dim="skills">Skills</button>
-                        <button data-dim="degreeLevel">Degree</button>
-                    </div>
-                </div>
-                <div id="bs-chips"></div>
-                <svg id="beeswarm-svg"></svg>
-            </div>
+    <div class="two-column-grid">
+        <!-- Skills Network Graph -->
+        <div class="card">
+            <h3>Skills Network</h3>
+            <small>Click nodes to explore skill relationships</small>
+            <svg id="skills-network-svg" height="400"></svg>
         </div>
-        <div class="bs-tip" id="bs-tip"></div>
+
+        <!-- Trending Skills -->
+        <div class="card">
+            <h3>Trending Skills</h3>
+            <small>Biggest movers in the last 30 days</small>
+            <div class="trending-grid" id="trending-skills"></div>
+        </div>
     </div>
 
-    <!-- NEW: Latest jobs card -->
-    <div class="card" id="recent-jobs-card">
-        <h3>Latest Jobs (last 24 hours)</h3>
-        <small>Click any role to open the listing in a new tab.</small>
-        <div id="recent-jobs-list"></div>
+    <!-- Culture Keywords -->
+    <div class="card">
+        <h3>💼 Company Culture Keywords</h3>
+        <small>Most mentioned culture terms in job descriptions</small>
+        <div class="keywords-cloud" id="culture-keywords"></div>
+    </div>
+
+    <!-- Map and Beeswarm -->
+    <h2>🗺️ Geographic Distribution & Job Explorer</h2>
+
+    <div class="two-column-grid">
+        <div class="card">
+            <h3>Job Locations Map</h3>
+            <small>Click clusters to explore opportunities</small>
+            <div id="map"></div>
+        </div>
+
+        <div class="card">
+            <h3>Interactive Job Explorer</h3>
+            <small>Powered by jobdata API</small>
+            <div class="segmented" id="dimension-selector">
+                <button data-dim="jobFunction" class="active">Function</button>
+                <button data-dim="industry">Industry</button>
+                <button data-dim="skills">Skills</button>
+                <button data-dim="degree">Degree</button>
+            </div>
+            <svg id="beeswarm-svg"></svg>
+        </div>
     </div>
 
     <script>
-        // Analytics API (DuckDB / job-market-stream)
+        // API Endpoints
         const ANALYTICS_API = "https://job-market-stream.onrender.com";
-        // Old jobs API (Mongo-style, previous project)
         const JOBS_API = "https://jobdata-cih4.onrender.com";
 
+        // Global variables
         let mapInstance = null;
 
-        // ----------------- Small helper: time-ago label -----------------
-        function timeAgo(dt) {
-            if (!dt || !(dt instanceof Date) || isNaN(dt.getTime())) return "Unknown";
-            const now = new Date();
-            const diffMs = now - dt;
-            const diffHours = Math.floor(diffMs / 3600000);
-            const diffDays = Math.floor(diffMs / 86400000);
-
-            if (diffHours < 1) return "Just now";
-            if (diffHours === 1) return "1 hour ago";
-            if (diffHours < 24) return `${diffHours} hours ago`;
-            if (diffDays === 1) return "1 day ago";
-            if (diffDays < 7) return `${diffDays} days ago`;
-            const weeks = Math.floor(diffDays / 7);
-            if (weeks === 1) return "1 week ago";
-            if (weeks < 5) return `${weeks} weeks ago`;
-            const months = Math.floor(diffDays / 30);
-            if (months === 1) return "1 month ago";
-            return `${months} months ago`;
-        }
-
-        // ----------------- Error helper -----------------
-        function renderError(containerId, msg) {
-            const el = document.getElementById(containerId);
-            if (el) el.textContent = msg;
-        }
-
-        // ----------------- Overview -----------------
-        async function loadOverview() {
+        // ==================== PULSE METRICS ====================
+        async function loadPulseMetrics() {
             try {
-                const res = await fetch(`${ANALYTICS_API}/api/overview`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
+                const response = await fetch(`${ANALYTICS_API}/api/pulse_metrics`);
+                const data = await response.json();
 
-                const container = d3.select("#overview-stats");
+                // Update last hour
+                document.getElementById('pulse-last-hour').textContent = data.last_hour.job_count;
+                const hourChange = document.getElementById('pulse-hour-change');
+                hourChange.textContent = `${data.last_hour.vs_weekly_avg > 0 ? '↑' : '↓'} ${Math.abs(data.last_hour.vs_weekly_avg)}% vs avg`;
+                hourChange.className = `pulse-change ${data.last_hour.trend}`;
+
+                // Update 24h stats
+                document.getElementById('pulse-24h').textContent = data.last_24h.job_count;
+                document.getElementById('pulse-24h-location').textContent = `📍 ${data.last_24h.hottest_location}`;
+
+                // Update function and applicants
+                document.getElementById('pulse-function').textContent = data.last_24h.hottest_function;
+                document.getElementById('pulse-avg-applicants').textContent = `Avg ${data.last_24h.avg_applicants} applicants`;
+
+                // Fetch trending skill separately
+                const skillsRes = await fetch(`${ANALYTICS_API}/api/trending_skills?days_back=7&top_n=1`);
+                const skills = await skillsRes.json();
+                if (skills && skills.length > 0) {
+                    document.getElementById('pulse-skill').textContent = skills[0].skill;
+                }
+            } catch (error) {
+                console.error('Error loading pulse metrics:', error);
+            }
+        }
+
+        // ==================== COMPETITION HEATMAP ====================
+        async function loadCompetitionHeatmap() {
+            try {
+                const response = await fetch(`${ANALYTICS_API}/api/competition_heatmap`);
+                const data = await response.json();
+
+                const container = d3.select("#competition-heatmap");
                 container.selectAll("*").remove();
 
-                const stats = [
-                    { label: "Total Jobs", value: data.total_jobs },
-                    { label: "Companies", value: data.unique_companies },
-                    { label: "Locations", value: data.unique_locations },
-                    {
-                        label: "Earliest Posting",
-                        value: data.earliest_posting?.slice(0, 10) || "N/A"
-                    },
-                    {
-                        label: "Latest Posting",
-                        value: data.latest_posting?.slice(0, 10) || "N/A"
-                    },
+                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                const hours = d3.range(24);
+
+                const margin = { top: 50, right: 30, bottom: 50, left: 60 };
+                const width = container.node().getBoundingClientRect().width - margin.left - margin.right;
+                const height = 250;
+
+                const svg = container.append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom);
+
+                const g = svg.append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                // Scales
+                const x = d3.scaleBand()
+                    .domain(hours)
+                    .range([0, width])
+                    .padding(0.02);
+
+                const y = d3.scaleBand()
+                    .domain(days)
+                    .range([0, height])
+                    .padding(0.02);
+
+                // Color scale - green (low competition) to red (high)
+                const maxApplicants = d3.max(data, d => d.avg_applicants);
+                const colorScale = d3.scaleSequential()
+                    .interpolator(d3.interpolateRdYlGn)
+                    .domain([maxApplicants, 0]); // Reversed for green = good
+
+                // Create tooltip
+                const tooltip = d3.select("body").append("div")
+                    .attr("class", "tooltip")
+                    .style("opacity", 0);
+
+                // Draw cells
+                g.selectAll(".hour")
+                    .data(data)
+                    .enter().append("rect")
+                    .attr("x", d => x(d.hour))
+                    .attr("y", d => y(days[d.day_of_week]))
+                    .attr("width", x.bandwidth())
+                    .attr("height", y.bandwidth())
+                    .attr("fill", d => colorScale(d.avg_applicants))
+                    .attr("stroke", "rgba(255,255,255,0.1)")
+                    .style("cursor", "pointer")
+                    .on("mouseover", function (event, d) {
+                        tooltip.transition().duration(200).style("opacity", .9);
+                        tooltip.html(`
+                            <strong>${days[d.day_of_week]} ${d.hour}:00</strong><br/>
+                            Avg applicants: ${Math.round(d.avg_applicants)}<br/>
+                            Jobs posted: ${d.job_count}
+                        `)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+
+                        d3.select(this).attr("stroke", "#fff").attr("stroke-width", 2);
+                    })
+                    .on("mouseout", function (d) {
+                        tooltip.transition().duration(500).style("opacity", 0);
+                        d3.select(this).attr("stroke", "rgba(255,255,255,0.1)").attr("stroke-width", 1);
+                    });
+
+                // Add axes
+                g.append("g")
+                    .selectAll("text")
+                    .data(days)
+                    .enter().append("text")
+                    .text(d => d)
+                    .attr("x", -10)
+                    .attr("y", (d, i) => y(d) + y.bandwidth() / 2)
+                    .style("text-anchor", "end")
+                    .attr("alignment-baseline", "middle")
+                    .style("font-size", "12px")
+                    .style("fill", "#9ca3af");
+
+                g.append("g")
+                    .selectAll("text")
+                    .data(hours)
+                    .enter().append("text")
+                    .text(d => d % 2 === 0 ? `${d}:00` : '')
+                    .attr("x", d => x(d) + x.bandwidth() / 2)
+                    .attr("y", height + 20)
+                    .style("text-anchor", "middle")
+                    .style("font-size", "10px")
+                    .style("fill", "#9ca3af");
+
+                // Add title
+                svg.append("text")
+                    .attr("x", width / 2 + margin.left)
+                    .attr("y", 20)
+                    .style("text-anchor", "middle")
+                    .style("font-size", "14px")
+                    .style("fill", "#e5e7eb")
+                    .text("Average Competition by Day and Hour");
+
+                // Update legend
+                const legend = d3.select("#heatmap-legend");
+                legend.selectAll("*").remove();
+
+                const legendData = [
+                    { label: "Low Competition", color: colorScale(0) },
+                    { label: "Medium", color: colorScale(maxApplicants / 2) },
+                    { label: "High Competition", color: colorScale(maxApplicants) }
                 ];
 
-                const pills = container.selectAll(".stat-pill")
-                    .data(stats)
-                    .enter()
-                    .append("div")
-                    .attr("class", "stat-pill");
+                legendData.forEach(item => {
+                    const div = legend.append("div").attr("class", "heatmap-legend-item");
+                    div.append("div")
+                        .attr("class", "heatmap-legend-box")
+                        .style("background", item.color);
+                    div.append("span").text(item.label);
+                });
 
-                pills.append("div")
-                    .attr("class", "stat-label")
-                    .text(d => d.label.toUpperCase());
-
-                pills.append("div")
-                    .attr("class", "stat-value")
-                    .text(d => d.value);
-            } catch (err) {
-                console.error("Error loading overview", err);
-                renderError("overview-error", "Failed to load overview stats.");
+            } catch (error) {
+                console.error('Error loading competition heatmap:', error);
+                d3.select("#competition-heatmap").append("div")
+                    .attr("class", "error-msg")
+                    .text("Failed to load competition heatmap");
             }
         }
 
-        // ----------------- Daily line chart -----------------
-        function drawDailyLineChart(containerId, data) {
-            const container = d3.select(`#${containerId}`);
-            container.selectAll("*").remove();
+        // ==================== SKILLS NETWORK ====================
+        async function loadSkillsNetwork() {
+            try {
+                const response = await fetch(`${ANALYTICS_API}/api/skills_network?limit=30`);
+                const data = await response.json();
 
-            if (!data || data.length === 0) {
-                container.append("div").attr("class", "error-msg").text("No data.");
-                return;
+                const svg = d3.select("#skills-network-svg");
+                svg.selectAll("*").remove();
+
+                const width = svg.node().getBoundingClientRect().width;
+                const height = 400;
+
+                svg.attr("width", width).attr("height", height);
+
+                // Create force simulation
+                const simulation = d3.forceSimulation(data.nodes)
+                    .force("link", d3.forceLink(data.edges).id(d => d.id).distance(100))
+                    .force("charge", d3.forceManyBody().strength(-300))
+                    .force("center", d3.forceCenter(width / 2, height / 2))
+                    .force("collision", d3.forceCollide().radius(d => Math.sqrt(d.size) * 2));
+
+                // Draw links (if any)
+                const link = svg.append("g")
+                    .selectAll("line")
+                    .data(data.edges || [])
+                    .enter().append("line")
+                    .attr("class", "link")
+                    .attr("stroke-width", d => Math.sqrt(d.weight || 1));
+
+                // Draw nodes
+                const node = svg.append("g")
+                    .selectAll("circle")
+                    .data(data.nodes)
+                    .enter().append("circle")
+                    .attr("class", "node")
+                    .attr("r", d => Math.sqrt(d.size) * 2)
+                    .attr("fill", d => {
+                        const scale = d3.scaleSequential(d3.interpolateViridis)
+                            .domain([0, d3.max(data.nodes, n => n.size)]);
+                        return scale(d.size);
+                    })
+                    .call(d3.drag()
+                        .on("start", dragstarted)
+                        .on("drag", dragged)
+                        .on("end", dragended));
+
+                // Add labels
+                const label = svg.append("g")
+                    .selectAll("text")
+                    .data(data.nodes)
+                    .enter().append("text")
+                    .attr("class", "node-label")
+                    .text(d => d.label)
+                    .style("font-size", d => Math.min(12, Math.sqrt(d.size)))
+                    .attr("text-anchor", "middle");
+
+                // Add tooltips
+                node.append("title")
+                    .text(d => `${d.label}: ${d.size} mentions`);
+
+                simulation.on("tick", () => {
+                    link
+                        .attr("x1", d => d.source.x)
+                        .attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x)
+                        .attr("y2", d => d.target.y);
+
+                    node
+                        .attr("cx", d => d.x)
+                        .attr("cy", d => d.y);
+
+                    label
+                        .attr("x", d => d.x)
+                        .attr("y", d => d.y);
+                });
+
+                function dragstarted(event, d) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                }
+
+                function dragged(event, d) {
+                    d.fx = event.x;
+                    d.fy = event.y;
+                }
+
+                function dragended(event, d) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    d.fx = null;
+                    d.fy = null;
+                }
+
+            } catch (error) {
+                console.error('Error loading skills network:', error);
             }
-
-            data.forEach(d => {
-                d.date = new Date(d.day);
-                d.job_count = +d.job_count;
-            });
-
-            const margin = { top: 20, right: 20, bottom: 35, left: 45 };
-            const width = container.node().clientWidth || 600;
-            const height = 260;
-
-            const svg = container.append("svg")
-                .attr("width", width)
-                .attr("height", height);
-
-            const innerWidth = width - margin.left - margin.right;
-            const innerHeight = height - margin.top - margin.bottom;
-
-            const g = svg.append("g")
-                .attr("transform", `translate(${margin.left},${margin.top})`);
-
-            const x = d3.scaleUtc()
-                .domain(d3.extent(data, d => d.date))
-                .range([0, innerWidth]);
-
-            const y = d3.scaleLinear()
-                .domain([0, d3.max(data, d => d.job_count) || 1])
-                .nice()
-                .range([innerHeight, 0]);
-
-            const xAxis = d3.axisBottom(x)
-                .ticks(6)
-                .tickFormat(d3.timeFormat("%b %d"));
-
-            const yAxis = d3.axisLeft(y).ticks(5);
-
-            g.append("g")
-                .attr("class", "axis")
-                .attr("transform", `translate(0,${innerHeight})`)
-                .call(xAxis);
-
-            g.append("g")
-                .attr("class", "axis")
-                .call(yAxis);
-
-            const line = d3.line()
-                .x(d => x(d.date))
-                .y(d => y(d.job_count))
-                .curve(d3.curveMonotoneX);
-
-            g.append("path")
-                .datum(data)
-                .attr("class", "line")
-                .attr("stroke", "#38bdf8")
-                .attr("d", line);
-
-            g.selectAll("circle.point")
-                .data(data)
-                .enter()
-                .append("circle")
-                .attr("class", "point")
-                .attr("cx", d => x(d.date))
-                .attr("cy", d => y(d.job_count))
-                .attr("r", 2)
-                .attr("fill", "#e5e7eb")
-                .attr("opacity", 0.8);
         }
 
+        // ==================== TRENDING SKILLS ====================
+        async function loadTrendingSkills() {
+            try {
+                const response = await fetch(`${ANALYTICS_API}/api/trending_skills?days_back=30&top_n=12`);
+                const data = await response.json();
+
+                const container = d3.select("#trending-skills");
+                container.selectAll("*").remove();
+
+                data.forEach(skill => {
+                    const div = container.append("div").attr("class", "trending-skill");
+
+                    div.append("div")
+                        .attr("class", "trending-skill-name")
+                        .text(skill.skill);
+
+                    const changeClass = skill.trend === 'growing' ? 'growing' :
+                        skill.trend === 'declining' ? 'declining' : 'stable';
+
+                    const arrow = skill.trend === 'growing' ? '↑' :
+                        skill.trend === 'declining' ? '↓' : '→';
+
+                    div.append("div")
+                        .attr("class", `trending-skill-change ${changeClass}`)
+                        .text(`${arrow} ${Math.abs(Math.round(skill.change_percent))}%`);
+
+                    div.append("div")
+                        .style("font-size", "0.7rem")
+                        .style("color", "#6b7280")
+                        .text(`${skill.recent_mentions} mentions`);
+                });
+
+            } catch (error) {
+                console.error('Error loading trending skills:', error);
+            }
+        }
+
+        // ==================== CULTURE KEYWORDS ====================
+        async function loadCultureKeywords() {
+            try {
+                const response = await fetch(`${ANALYTICS_API}/api/culture_keywords?limit=20`);
+                const data = await response.json();
+
+                const container = d3.select("#culture-keywords");
+                container.selectAll("*").remove();
+
+                // Size scale based on count
+                const maxCount = d3.max(data, d => d.count);
+                const sizeScale = d3.scaleLinear()
+                    .domain([0, maxCount])
+                    .range([0.8, 1.5]);
+
+                data.forEach(keyword => {
+                    container.append("div")
+                        .attr("class", "keyword-bubble")
+                        .style("font-size", `${sizeScale(keyword.count)}rem`)
+                        .style("opacity", 0.6 + (keyword.count / maxCount) * 0.4)
+                        .text(`${keyword.keyword} (${keyword.percentage.toFixed(1)}%)`);
+                });
+
+            } catch (error) {
+                console.error('Error loading culture keywords:', error);
+            }
+        }
+
+        // ==================== COMPANY VELOCITY CHART ====================
+        async function loadCompanyVelocity() {
+            try {
+                const response = await fetch(`${ANALYTICS_API}/api/company_velocity?days=30&top_n=10`);
+                const data = await response.json();
+
+                // Group by company
+                const companies = d3.group(data, d => d.company_name);
+
+                // Prepare data for Chart.js
+                const labels = [...new Set(data.map(d => d.day))].sort();
+                const datasets = [];
+
+                const colors = d3.schemeCategory10;
+                let colorIndex = 0;
+
+                companies.forEach((values, company) => {
+                    datasets.push({
+                        label: company,
+                        data: labels.map(day => {
+                            const dayData = values.find(v => v.day === day);
+                            return dayData ? dayData.cumulative_posts : 0;
+                        }),
+                        borderColor: colors[colorIndex % colors.length],
+                        backgroundColor: colors[colorIndex % colors.length] + '33',
+                        tension: 0.4
+                    });
+                    colorIndex++;
+                });
+
+                // Create chart
+                const ctx = document.getElementById('company-velocity-chart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels.map(d => new Date(d).toLocaleDateString()),
+                        datasets: datasets.slice(0, 5) // Limit to top 5 for clarity
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: '#9ca3af' }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: '#374151' },
+                                ticks: { color: '#9ca3af' }
+                            },
+                            x: {
+                                grid: { color: '#374151' },
+                                ticks: { color: '#9ca3af', maxRotation: 45 }
+                            }
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error loading company velocity:', error);
+            }
+        }
+
+        // ==================== JOB LIFECYCLE FUNNEL ====================
+        async function loadJobLifecycle() {
+            try {
+                const response = await fetch(`${ANALYTICS_API}/api/job_lifecycle`);
+                const data = await response.json();
+
+                const ctx = document.getElementById('lifecycle-chart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.map(d => d.lifecycle_stage),
+                        datasets: [{
+                            label: 'Job Count',
+                            data: data.map(d => d.job_count),
+                            backgroundColor: data.map((d, i) => {
+                                const colors = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#6b7280'];
+                                return colors[i % colors.length];
+                            })
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: '#374151' },
+                                ticks: { color: '#9ca3af' }
+                            },
+                            y: {
+                                grid: { color: '#374151' },
+                                ticks: { color: '#9ca3af' }
+                            }
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error loading job lifecycle:', error);
+            }
+        }
+
+        // ==================== REMOTE EVOLUTION CHART ====================
+        async function loadRemoteEvolution() {
+            try {
+                const response = await fetch(`${ANALYTICS_API}/api/remote_evolution?days=180`);
+                const data = await response.json();
+
+                // Group by week and work mode
+                const weeks = [...new Set(data.map(d => d.week))].sort();
+                const workModes = [...new Set(data.map(d => d.work_mode))];
+
+                const datasets = workModes.map(mode => {
+                    const color = mode.includes('Remote') ? '#22c55e' :
+                        mode.includes('Hybrid') ? '#3b82f6' :
+                            mode.includes('On-site') ? '#ef4444' : '#6b7280';
+
+                    return {
+                        label: mode,
+                        data: weeks.map(week => {
+                            const weekData = data.find(d => d.week === week && d.work_mode === mode);
+                            return weekData ? weekData.percentage : 0;
+                        }),
+                        backgroundColor: color + '88',
+                        borderColor: color,
+                        fill: true
+                    };
+                });
+
+                const ctx = document.getElementById('remote-evolution-chart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: weeks.map(w => new Date(w).toLocaleDateString()),
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: '#9ca3af' }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        return context.dataset.label + ': ' + context.parsed.y.toFixed(1) + '%';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                stacked: true,
+                                grid: { color: '#374151' },
+                                ticks: {
+                                    color: '#9ca3af',
+                                    callback: function (value) {
+                                        return value + '%';
+                                    }
+                                }
+                            },
+                            x: {
+                                grid: { color: '#374151' },
+                                ticks: { color: '#9ca3af', maxRotation: 45 }
+                            }
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error loading remote evolution:', error);
+            }
+        }
+
+        // ==================== EXISTING FUNCTIONS (Daily chart, etc.) ====================
         async function loadDailyCounts() {
             try {
                 const res = await fetch(`${ANALYTICS_API}/api/daily_counts?days=180`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
-                drawDailyLineChart("chart-daily", data);
-            } catch (err) {
-                console.error("Error loading daily counts", err);
-                d3.select("#chart-daily")
-                    .append("div")
-                    .attr("class", "error-msg")
-                    .text("Failed to load daily counts.");
-            }
-        }
 
-        // ----------------- Generic bar chart -----------------
-        function drawBarChart(containerId, data, { xKey, yKey, color = "#4ade80", maxBars = null } = {}) {
-            const container = d3.select(`#${containerId}`);
-            container.selectAll("*").remove();
+                const container = d3.select("#chart-daily");
+                container.selectAll("*").remove();
 
-            if (!data || data.length === 0) {
-                container.append("div").attr("class", "error-msg").text("No data.");
-                return;
-            }
+                if (!data || data.length === 0) {
+                    container.append("div").attr("class", "error-msg").text("No data available");
+                    return;
+                }
 
-            if (maxBars && data.length > maxBars) {
-                data = data.slice(0, maxBars);
-            }
-
-            const margin = { top: 20, right: 20, bottom: 70, left: 55 };
-            const width = container.node().clientWidth || 500;
-            const height = 260;
-
-            const svg = container.append("svg")
-                .attr("width", width)
-                .attr("height", height);
-
-            const innerWidth = width - margin.left - margin.right;
-            const innerHeight = height - margin.top - margin.bottom;
-
-            const g = svg.append("g")
-                .attr("transform", `translate(${margin.left},${margin.top})`);
-
-            const x = d3.scaleBand()
-                .domain(data.map(d => d[xKey]))
-                .range([0, innerWidth])
-                .padding(0.15);
-
-            const y = d3.scaleLinear()
-                .domain([0, d3.max(data, d => d[yKey]) || 1])
-                .nice()
-                .range([innerHeight, 0]);
-
-            const xAxis = d3.axisBottom(x)
-                .tickFormat(d => d.length > 15 ? d.slice(0, 13) + "…" : d);
-
-            const yAxis = d3.axisLeft(y).ticks(5);
-
-            g.append("g")
-                .attr("class", "axis")
-                .attr("transform", `translate(0,${innerHeight})`)
-                .call(xAxis)
-                .selectAll("text")
-                .attr("transform", "rotate(-35)")
-                .style("text-anchor", "end");
-
-            g.append("g")
-                .attr("class", "axis")
-                .call(yAxis);
-
-            g.selectAll(".bar")
-                .data(data)
-                .enter()
-                .append("rect")
-                .attr("class", "bar")
-                .attr("x", d => x(d[xKey]))
-                .attr("y", d => y(d[yKey]))
-                .attr("width", x.bandwidth())
-                .attr("height", d => innerHeight - y(d[yKey]))
-                .attr("fill", color)
-                .attr("opacity", 0.9);
-        }
-
-        async function loadJobsByFunctionAll() {
-            try {
-                const res = await fetch(`${ANALYTICS_API}/api/jobs_by_function`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                data.forEach(d => d.count = +d.count);
-                drawBarChart("chart-func-all", data, {
-                    xKey: "job_function",
-                    yKey: "count",
-                    color: "#a855f7",
-                    maxBars: 15
+                data.forEach(d => {
+                    d.date = new Date(d.day);
+                    d.job_count = +d.job_count;
                 });
-            } catch (err) {
-                console.error("Error loading jobs_by_function all", err);
-                d3.select("#chart-func-all")
-                    .append("div")
-                    .attr("class", "error-msg")
-                    .text("Failed to load job function data.");
+
+                const margin = { top: 20, right: 20, bottom: 35, left: 45 };
+                const width = container.node().getBoundingClientRect().width - margin.left - margin.right;
+                const height = 260 - margin.top - margin.bottom;
+
+                const svg = container.append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom);
+
+                const g = svg.append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                const x = d3.scaleUtc()
+                    .domain(d3.extent(data, d => d.date))
+                    .range([0, width]);
+
+                const y = d3.scaleLinear()
+                    .domain([0, d3.max(data, d => d.job_count)])
+                    .nice()
+                    .range([height, 0]);
+
+                // Add gradient
+                const gradient = svg.append("defs")
+                    .append("linearGradient")
+                    .attr("id", "line-gradient")
+                    .attr("gradientUnits", "userSpaceOnUse")
+                    .attr("x1", 0).attr("y1", y(0))
+                    .attr("x2", 0).attr("y2", y(d3.max(data, d => d.job_count)));
+
+                gradient.append("stop")
+                    .attr("offset", "0%")
+                    .attr("stop-color", "#3b82f6")
+                    .attr("stop-opacity", 0.1);
+
+                gradient.append("stop")
+                    .attr("offset", "100%")
+                    .attr("stop-color", "#3b82f6")
+                    .attr("stop-opacity", 0.8);
+
+                // Area
+                const area = d3.area()
+                    .x(d => x(d.date))
+                    .y0(height)
+                    .y1(d => y(d.job_count))
+                    .curve(d3.curveMonotoneX);
+
+                g.append("path")
+                    .datum(data)
+                    .attr("fill", "url(#line-gradient)")
+                    .attr("d", area);
+
+                // Line
+                const line = d3.line()
+                    .x(d => x(d.date))
+                    .y(d => y(d.job_count))
+                    .curve(d3.curveMonotoneX);
+
+                g.append("path")
+                    .datum(data)
+                    .attr("fill", "none")
+                    .attr("stroke", "#3b82f6")
+                    .attr("stroke-width", 2.5)
+                    .attr("d", line);
+
+                // Axes
+                g.append("g")
+                    .attr("class", "axis")
+                    .attr("transform", `translate(0,${height})`)
+                    .call(d3.axisBottom(x).ticks(6).tickFormat(d3.timeFormat("%b %d")));
+
+                g.append("g")
+                    .attr("class", "axis")
+                    .call(d3.axisLeft(y).ticks(5));
+
+            } catch (error) {
+                console.error('Error loading daily counts:', error);
             }
         }
 
-        async function loadJobsByFunction7d() {
-            try {
-                const res = await fetch(`${ANALYTICS_API}/api/jobs_by_function?days=7`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                data.forEach(d => d.count = +d.count);
-                drawBarChart("chart-func-7d", data, {
-                    xKey: "job_function",
-                    yKey: "count",
-                    color: "#22c55e",
-                    maxBars: 12
-                });
-            } catch (err) {
-                console.error("Error loading jobs_by_function 7d", err);
-                d3.select("#chart-func-7d")
-                    .append("div")
-                    .attr("class", "error-msg")
-                    .text("Failed to load recent job function data.");
-            }
-        }
-
-        async function loadWorkMode7d() {
-            try {
-                const res = await fetch(`${ANALYTICS_API}/api/work_mode?days=7`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                data.forEach(d => d.count = +d.count);
-                drawBarChart("chart-workmode-7d", data, {
-                    xKey: "work_mode",
-                    yKey: "count",
-                    color: "#f97316",
-                    maxBars: 5
-                });
-            } catch (err) {
-                console.error("Error loading work_mode 7d", err);
-                d3.select("#chart-workmode-7d")
-                    .append("div")
-                    .attr("class", "error-msg")
-                    .text("Failed to load work mode data.");
-            }
-        }
-
-        // ----------------- 24h hourly bubble chart -----------------
-        function drawHourlyBubbleChart(containerId, data) {
-            const container = d3.select(`#${containerId}`);
-            container.selectAll("svg").remove();
-            container.selectAll(".bs-tip").remove();
-
-            if (!data || data.length === 0) {
-                container.append("div")
-                    .attr("class", "error-msg")
-                    .text("No data for last 24 hours.");
-                return;
-            }
-
-            data.forEach(d => {
-                d.date = new Date(d.hour);
-                d.job_count = +d.job_count;
-            });
-
-            const margin = { top: 20, right: 20, bottom: 35, left: 45 };
-            const width = container.node().clientWidth || 500;
-            const height = 260;
-
-            const svg = container.append("svg")
-                .attr("width", width)
-                .attr("height", height);
-
-            const innerWidth = width - margin.left - margin.right;
-            const innerHeight = height - margin.top - margin.bottom;
-
-            const g = svg.append("g")
-                .attr("transform", `translate(${margin.left},${margin.top})`);
-
-            const x = d3.scaleTime()
-                .domain(d3.extent(data, d => d.date))
-                .range([0, innerWidth]);
-
-            const maxCount = d3.max(data, d => d.job_count) || 1;
-
-            const r = d3.scaleSqrt()
-                .domain([0, maxCount])
-                .range([5, 18]);
-
-            const y = d3.scaleLinear()
-                .domain([0, maxCount])
-                .nice()
-                .range([innerHeight, 0]);
-
-            const xAxis = d3.axisBottom(x)
-                .ticks(6)
-                .tickFormat(d3.timeFormat("%H:%M"));
-
-            const yAxis = d3.axisLeft(y).ticks(4);
-
-            g.append("g")
-                .attr("class", "axis")
-                .attr("transform", `translate(0,${innerHeight})`)
-                .call(xAxis);
-
-            g.append("g")
-                .attr("class", "axis")
-                .call(yAxis);
-
-            const latestDate = d3.max(data, d => d.date);
-
-            const tooltip = d3.select("#chart-24h-bubbles")
-                .append("div")
-                .attr("class", "bs-tip")
-                .style("opacity", 0);
-
-            g.selectAll("circle.hour-bubble")
-                .data(data)
-                .enter()
-                .append("circle")
-                .attr("class", "hour-bubble")
-                .attr("cx", d => x(d.date))
-                .attr("cy", d => y(d.job_count))
-                .attr("r", d => r(d.job_count))
-                .attr("fill", d =>
-                    d.date.getTime() === latestDate.getTime()
-                        ? "#22c55e"
-                        : "#6b7280"
-                )
-                .attr("opacity", 0.9)
-                .on("mouseenter", function (event, d) {
-                    d3.select(this).attr("stroke", "#e5e7eb").attr("stroke-width", 1.4);
-                    tooltip
-                        .style("opacity", 1)
-                        .html(
-                            `<strong>${d3.timeFormat("%b %d, %H:00")(d.date)}</strong><br>` +
-                            `${d.job_count} job${d.job_count === 1 ? "" : "s"}`
-                        )
-                        .style("left", (event.offsetX + 20) + "px")
-                        .style("top", (event.offsetY + 10) + "px");
-                })
-                .on("mousemove", function (event) {
-                    tooltip
-                        .style("left", (event.offsetX + 20) + "px")
-                        .style("top", (event.offsetY + 10) + "px");
-                })
-                .on("mouseleave", function () {
-                    d3.select(this).attr("stroke-width", 0);
-                    tooltip.style("opacity", 0);
-                });
-        }
-
-        async function loadHourlyCounts24h() {
+        // ==================== 24H BUBBLES ====================
+        async function loadHourlyCounts() {
             try {
                 const res = await fetch(`${ANALYTICS_API}/api/hourly_counts?hours=24`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
-                drawHourlyBubbleChart("chart-24h-bubbles", data);
-            } catch (err) {
-                console.error("Error loading hourly counts", err);
+
                 const container = d3.select("#chart-24h-bubbles");
-                container.append("div")
-                    .attr("class", "error-msg")
-                    .text("Failed to load last-24-hours data.");
+                container.selectAll("*").remove();
+
+                if (!data || data.length === 0) {
+                    container.append("div").attr("class", "error-msg").text("No data for last 24 hours");
+                    return;
+                }
+
+                data.forEach(d => {
+                    d.date = new Date(d.hour);
+                    d.job_count = +d.job_count;
+                });
+
+                const margin = { top: 20, right: 20, bottom: 35, left: 45 };
+                const width = container.node().getBoundingClientRect().width - margin.left - margin.right;
+                const height = 260 - margin.top - margin.bottom;
+
+                const svg = container.append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom);
+
+                const g = svg.append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                const x = d3.scaleTime()
+                    .domain(d3.extent(data, d => d.date))
+                    .range([0, width]);
+
+                const maxCount = d3.max(data, d => d.job_count) || 1;
+
+                const r = d3.scaleSqrt()
+                    .domain([0, maxCount])
+                    .range([5, 20]);
+
+                const y = d3.scaleLinear()
+                    .domain([0, maxCount])
+                    .nice()
+                    .range([height, 0]);
+
+                const latestDate = d3.max(data, d => d.date);
+
+                // Bubbles
+                g.selectAll("circle")
+                    .data(data)
+                    .enter().append("circle")
+                    .attr("cx", d => x(d.date))
+                    .attr("cy", d => y(d.job_count))
+                    .attr("r", d => r(d.job_count))
+                    .attr("fill", d => d.date.getTime() === latestDate.getTime() ? "#22c55e" : "#3b82f6")
+                    .attr("opacity", 0.7)
+                    .append("title")
+                    .text(d => `${d3.timeFormat("%b %d, %H:00")(d.date)}: ${d.job_count} jobs`);
+
+                // Axes
+                g.append("g")
+                    .attr("class", "axis")
+                    .attr("transform", `translate(0,${height})`)
+                    .call(d3.axisBottom(x).ticks(6).tickFormat(d3.timeFormat("%H:%M")));
+
+                g.append("g")
+                    .attr("class", "axis")
+                    .call(d3.axisLeft(y).ticks(4));
+
+            } catch (error) {
+                console.error('Error loading hourly counts:', error);
             }
         }
 
-        // ----------------- Map + Beeswarm + Latest Jobs (OLD API) -----------------
+        // ==================== JOB FUNCTION CHART ====================
+        async function loadJobsByFunction() {
+            try {
+                const res = await fetch(`${ANALYTICS_API}/api/jobs_by_function`);
+                const data = await res.json();
 
-        async function loadMapAndBeeswarm() {
+                const container = d3.select("#chart-func-all");
+                container.selectAll("*").remove();
+
+                // Take top 10
+                const topData = data.slice(0, 10);
+
+                const margin = { top: 20, right: 20, bottom: 100, left: 60 };
+                const width = container.node().getBoundingClientRect().width - margin.left - margin.right;
+                const height = 300 - margin.top - margin.bottom;
+
+                const svg = container.append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom);
+
+                const g = svg.append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                const x = d3.scaleBand()
+                    .domain(topData.map(d => d.job_function))
+                    .range([0, width])
+                    .padding(0.1);
+
+                const y = d3.scaleLinear()
+                    .domain([0, d3.max(topData, d => d.count)])
+                    .nice()
+                    .range([height, 0]);
+
+                // Bars
+                g.selectAll(".bar")
+                    .data(topData)
+                    .enter().append("rect")
+                    .attr("class", "bar")
+                    .attr("x", d => x(d.job_function))
+                    .attr("y", d => y(d.count))
+                    .attr("width", x.bandwidth())
+                    .attr("height", d => height - y(d.count))
+                    .attr("fill", "#a855f7")
+                    .attr("opacity", 0.8);
+
+                // Axes
+                g.append("g")
+                    .attr("class", "axis")
+                    .attr("transform", `translate(0,${height})`)
+                    .call(d3.axisBottom(x))
+                    .selectAll("text")
+                    .attr("transform", "rotate(-45)")
+                    .style("text-anchor", "end");
+
+                g.append("g")
+                    .attr("class", "axis")
+                    .call(d3.axisLeft(y));
+
+            } catch (error) {
+                console.error('Error loading job functions:', error);
+            }
+        }
+
+        // ==================== BEESWARM (using jobdata API) ====================
+        async function loadBeeswarm() {
+            try {
+                const response = await fetch(`${JOBS_API}/api/jobs`);
+                const jobs = await response.json();
+
+                // Process jobs data for beeswarm
+                const nodes = jobs.slice(0, 500).map((job, i) => ({
+                    id: i,
+                    title: job.job_title || job.title || 'Unknown',
+                    company: job.company_name || job.company || 'Unknown',
+                    jobFunction: job.job_function || job.function || 'Other',
+                    industry: job.industry || 'Other',
+                    skills: job.skills ? job.skills.split(',').map(s => s.trim()) : [],
+                    degree: job.degree_requirement || job.degree || 'Not specified'
+                }));
+
+                drawBeeswarm(nodes);
+
+            } catch (error) {
+                console.error('Error loading beeswarm data:', error);
+            }
+        }
+
+        function drawBeeswarm(nodes) {
+            const svg = d3.select("#beeswarm-svg");
+            svg.selectAll("*").remove();
+
+            const width = svg.node().getBoundingClientRect().width;
+            const height = 450;
+
+            svg.attr("width", width).attr("height", height);
+
+            let currentDimension = 'jobFunction';
+
+            // Group nodes by dimension
+            function groupBy(dimension) {
+                const groups = d3.group(nodes, d => {
+                    if (dimension === 'jobFunction') return d.jobFunction;
+                    if (dimension === 'industry') return d.industry;
+                    if (dimension === 'skills') return d.skills[0] || 'No skills';
+                    if (dimension === 'degree') return d.degree;
+                    return 'Other';
+                });
+                return groups;
+            }
+
+            // Create force simulation
+            const simulation = d3.forceSimulation(nodes)
+                .force("charge", d3.forceManyBody().strength(-5))
+                .force("collision", d3.forceCollide().radius(5));
+
+            // Draw nodes
+            const circles = svg.selectAll("circle")
+                .data(nodes)
+                .enter().append("circle")
+                .attr("r", 4)
+                .attr("fill", "#3b82f6")
+                .attr("opacity", 0.6)
+                .append("title")
+                .text(d => `${d.title} at ${d.company}`);
+
+            // Update positions based on dimension
+            function updateDimension(dimension) {
+                const groups = groupBy(dimension);
+                const groupNames = Array.from(groups.keys());
+
+                const xScale = d3.scalePoint()
+                    .domain(groupNames)
+                    .range([50, width - 50])
+                    .padding(0.5);
+
+                simulation
+                    .force("x", d3.forceX(d => {
+                        const key = dimension === 'jobFunction' ? d.jobFunction :
+                            dimension === 'industry' ? d.industry :
+                                dimension === 'skills' ? (d.skills[0] || 'No skills') :
+                                    d.degree;
+                        return xScale(key);
+                    }).strength(0.5))
+                    .force("y", d3.forceY(height / 2).strength(0.1))
+                    .alpha(1)
+                    .restart();
+            }
+
+            simulation.on("tick", () => {
+                svg.selectAll("circle")
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y);
+            });
+
+            // Handle dimension selector
+            d3.selectAll("#dimension-selector button").on("click", function () {
+                d3.selectAll("#dimension-selector button").classed("active", false);
+                d3.select(this).classed("active", true);
+
+                const dimension = this.getAttribute("data-dim");
+                updateDimension(dimension);
+            });
+
+            // Initialize with job function
+            updateDimension('jobFunction');
+        }
+
+        // ==================== MAP ====================
+        async function loadMap() {
             try {
                 const [jobsRes, geoRes] = await Promise.all([
                     fetch(`${JOBS_API}/api/jobs`),
                     fetch(`${JOBS_API}/api/geo_locations`)
                 ]);
 
-                if (!jobsRes.ok) throw new Error(`Jobs HTTP ${jobsRes.status}`);
-                const rawJobs = await jobsRes.json();
+                const jobs = await jobsRes.json();
+                const geoData = geoRes.ok ? await geoRes.json() : [];
 
-                let geoRows = [];
-                if (geoRes.ok) {
-                    geoRows = await geoRes.json();
-                } else {
-                    console.warn("geo_locations request not OK, continuing without geo data");
-                }
-
+                // Create geo index
                 const geoIndex = new Map();
-                geoRows.forEach(r => {
-                    const locKey = (r.location || r.name || r._id || "").toString().trim();
-                    if (!locKey) return;
-                    const lat = r.latitude ?? r.lat;
-                    const lng = r.longitude ?? r.lng ?? r.lon;
-                    geoIndex.set(locKey, { lat, lng });
+                geoData.forEach(g => {
+                    if (g.location && g.latitude && g.longitude) {
+                        geoIndex.set(g.location, { lat: g.latitude, lng: g.longitude });
+                    }
                 });
 
-                const now = new Date();
-                const oneDayMs = 24 * 3600 * 1000;
+                // Initialize map
+                if (mapInstance) {
+                    mapInstance.remove();
+                }
 
-                const jobs = rawJobs.map((j, i) => {
-                    const title = (j.job_title || j.title || j.position || "Untitled role").toString().trim();
-                    const company = (j.company_name || j.company || j.employer || "Unknown company").toString().trim();
-                    const location = (j.location || j.city || j.place || "Unknown").toString().trim();
-                    const jobFunction = (j.job_function || j.function || j.category || "Other").toString().trim();
-                    const industry = (j.industry || j.Industry || "").toString().trim();
-                    const workMode = (j.work_mode || j.mode || j.location_mode || "Unknown").toString().trim();
-                    const skillsStr = (j.skills_desired || j.skills || "").toString();
-                    const degreeRaw = (j.degree_qualifications || j.degree || j.education || "").toString();
-                    const applicants = typeof j.num_applicants === "number"
-                        ? j.num_applicants
-                        : (j.num_applicants_int || null);
-                    const link = j.job_link || j.url || j.application_link || j.apply_url || null;
+                mapInstance = L.map('map').setView([39.8283, -98.5795], 4);
 
-                    const timeStr = j.time_posted_parsed || j.time_posted || null;
-                    let timeDt = null;
-                    if (timeStr) {
-                        const tmp = new Date(timeStr);
-                        if (!isNaN(tmp.getTime())) {
-                            timeDt = tmp;
-                        }
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(mapInstance);
+
+                // Group jobs by location
+                const locationGroups = d3.group(jobs, d => d.location || 'Unknown');
+
+                // Add markers
+                locationGroups.forEach((jobsList, location) => {
+                    const geo = geoIndex.get(location);
+                    if (geo) {
+                        const marker = L.marker([geo.lat, geo.lng])
+                            .addTo(mapInstance)
+                            .bindPopup(`
+                                <strong>${location}</strong><br>
+                                ${jobsList.length} jobs available
+                            `);
                     }
-
-                    let bucket = "Unknown";
-                    if (timeDt) {
-                        const diffMs = now - timeDt;
-                        const diffHours = diffMs / 3600000;
-                        if (diffHours <= 24) bucket = "Last 24h";
-                        else if (diffHours <= 24 * 7) bucket = "Past week";
-                        else if (diffHours <= 24 * 30) bucket = "Past month";
-                        else bucket = "Older";
-                    }
-
-                    function degreeLevel(text) {
-                        const v = text.toLowerCase();
-                        if (!v) return "Other";
-                        if (/(ph\.?d|doctor|doctoral)/.test(v)) return "PhD";
-                        if (/(master|m\.s\.|ms\b|m\.sc)/.test(v)) return "Master's";
-                        if (/(bachelor|b\.s\.|bs\b|ba\b|b\.a)/.test(v)) return "Bachelor's";
-                        if (/(associate|a\.s\.|aa\b)/.test(v)) return "Associate's";
-                        if (/high\s*school|ged/.test(v)) return "High School";
-                        if (/(enrolled|pursuing|currently)/.test(v)) return "Enrolled";
-                        return "Other";
-                    }
-
-                    const degLevel = degreeLevel(degreeRaw);
-
-                    const skillsArr = skillsStr
-                        .split(",")
-                        .map(t => t.trim())
-                        .filter(Boolean);
-
-                    function companyBucket(name) {
-                        const s = name.toLowerCase();
-                        if (!s) return "Other";
-                        if (/(google|meta|facebook|amazon|apple|microsoft|nvidia|netflix|adobe|salesforce|ibm|oracle)/.test(s)) {
-                            return "Big Tech";
-                        }
-                        if (/(mckinsey|bcg|bain|deloitte|pwc|kpmg|ey|accenture|capgemini)/.test(s)) {
-                            return "Consulting / Big 4";
-                        }
-                        if (/(goldman|morgan stanley|jpmorgan|jp morgan|bank of america|wells fargo|citigroup|ubs|barclays|blackrock|vanguard)/.test(s)) {
-                            return "Finance";
-                        }
-                        return "Other";
-                    }
-
-                    const geo = geoIndex.get(location) || {};
-                    const lat = geo.lat ?? null;
-                    const lng = geo.lng ?? null;
-
-                    return {
-                        id: j.job_id || j._id || i,
-                        title,
-                        company,
-                        location,
-                        jobFunction,
-                        industry,
-                        workMode,
-                        skills: skillsArr,
-                        degreeLevel: degLevel,
-                        applicants,
-                        jobLink: link,
-                        timePostedDt: timeDt,
-                        timeAgoLabel: timeDt ? timeAgo(timeDt) : "Unknown",
-                        timeBucket: bucket,
-                        lat,
-                        lng
-                    };
                 });
 
-                // Filter to last 24h only for map + beeswarm + list
-                const recentJobs = jobs.filter(j => {
-                    if (!j.timePostedDt) return false;
-                    return (now - j.timePostedDt) <= oneDayMs;
-                });
-
-                // If API doesn't give timestamps in a parseable form, fallback to all jobs
-                const jobsForVis = recentJobs.length > 0 ? recentJobs : jobs;
-
-                initMapAndBeeswarm(jobsForVis);
-                renderRecentJobs(jobsForVis);
-            } catch (err) {
-                console.error("Error loading jobs for map/beeswarm", err);
+            } catch (error) {
+                console.error('Error loading map:', error);
             }
         }
 
-        function renderRecentJobs(jobs) {
-            const container = document.getElementById("recent-jobs-list");
-            if (!container) return;
-            container.innerHTML = "";
-
-            if (!jobs || jobs.length === 0) {
-                const div = document.createElement("div");
-                div.className = "error-msg";
-                div.textContent = "No recent jobs available.";
-                container.appendChild(div);
-                return;
-            }
-
-            const sorted = [...jobs].sort((a, b) => {
-                if (!a.timePostedDt && !b.timePostedDt) return 0;
-                if (!a.timePostedDt) return 1;
-                if (!b.timePostedDt) return -1;
-                return b.timePostedDt - a.timePostedDt;
-            }).slice(0, 40); // cap to 40 jobs in list
-
-            sorted.forEach(job => {
-                const row = document.createElement("div");
-                row.className = "job-row";
-
-                const header = document.createElement("div");
-                header.className = "job-row-header";
-
-                const titleEl = document.createElement("div");
-                titleEl.className = "job-title";
-                titleEl.textContent = job.title;
-
-                const btn = document.createElement("button");
-                btn.className = "job-link-btn";
-                btn.textContent = job.jobLink ? "Open" : "No link";
-                if (job.jobLink) {
-                    btn.onclick = () => {
-                        window.open(job.jobLink, "_blank", "noopener,noreferrer");
-                    };
-                } else {
-                    btn.disabled = true;
-                    btn.style.opacity = 0.6;
-                    btn.style.cursor = "default";
+        // ==================== INITIALIZE DASHBOARD ====================
+        async function initDashboard() {
+            // Show loading states
+            document.querySelectorAll('.card').forEach(card => {
+                if (!card.querySelector('.loading')) {
+                    const loading = document.createElement('div');
+                    loading.className = 'loading';
+                    loading.textContent = 'Loading...';
+                    card.appendChild(loading);
                 }
-
-                header.appendChild(titleEl);
-                header.appendChild(btn);
-
-                const meta = document.createElement("div");
-                meta.className = "job-meta";
-                meta.textContent = `${job.company} • ${job.location} • ${job.timeAgoLabel}`;
-
-                const tagsWrap = document.createElement("div");
-                tagsWrap.className = "job-tags";
-
-                function addTag(label) {
-                    if (!label) return;
-                    const tag = document.createElement("span");
-                    tag.className = "job-tag";
-                    tag.textContent = label;
-                    tagsWrap.appendChild(tag);
-                }
-
-                addTag(job.jobFunction);
-                addTag(job.workMode);
-                addTag(job.degreeLevel);
-
-                if (job.skills && job.skills.length) {
-                    job.skills.slice(0, 3).forEach(s => addTag(s));
-                }
-
-                row.appendChild(header);
-                row.appendChild(meta);
-                row.appendChild(tagsWrap);
-                container.appendChild(row);
             });
+
+            // Load all visualizations
+            await Promise.all([
+                loadPulseMetrics(),
+                loadCompetitionHeatmap(),
+                loadSkillsNetwork(),
+                loadTrendingSkills(),
+                loadCultureKeywords(),
+                loadCompanyVelocity(),
+                loadJobLifecycle(),
+                loadRemoteEvolution(),
+                loadDailyCounts(),
+                loadHourlyCounts(),
+                loadJobsByFunction(),
+                loadBeeswarm(),
+                loadMap()
+            ]);
+
+            // Remove loading states
+            document.querySelectorAll('.loading').forEach(el => el.remove());
         }
 
-        function initMapAndBeeswarm(nodes) {
-            if (!nodes || nodes.length === 0) {
-                console.warn("No nodes for map/beeswarm");
-                return;
-            }
-
-            // ----------------- Map -----------------
-            const geoNodes = nodes.filter(d =>
-                d.lat != null &&
-                d.lng != null &&
-                !Number.isNaN(d.lat) &&
-                !Number.isNaN(d.lng)
-            );
-
-            if (mapInstance) {
-                mapInstance.remove();
-                mapInstance = null;
-            }
-
-            mapInstance = L.map("map").setView([38.0, -95.0], 4);
-            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                attribution: "© OpenStreetMap contributors"
-            }).addTo(mapInstance);
-
-            if (geoNodes.length > 0) {
-                const byLocation = d3.group(
-                    geoNodes,
-                    d => `${d.location}|${d.lat}|${d.lng}`
-                );
-
-                const locArray = Array.from(byLocation, ([key, arr]) => {
-                    const [loc, lat, lng] = key.split("|");
-                    const latNum = +lat;
-                    const lngNum = +lng;
-                    const count = arr.length;
-                    const avgApplicants = d3.mean(arr, d => d.applicants || 0) || 0;
-
-                    let level = "unknown";
-                    if (avgApplicants > 0 && avgApplicants < 60) level = "low";
-                    else if (avgApplicants >= 60 && avgApplicants < 100) level = "medium";
-                    else if (avgApplicants >= 100) level = "high";
-
-                    return {
-                        location: loc,
-                        lat: latNum,
-                        lng: lngNum,
-                        jobs: arr,
-                        jobCount: count,
-                        avgApplicants,
-                        level
-                    };
-                });
-
-                const clusters = L.markerClusterGroup({
-                    spiderfyOnMaxZoom: true,
-                    showCoverageOnHover: false
-                });
-
-                locArray.forEach(loc => {
-                    const cls =
-                        loc.level === "low" ? "marker-low" :
-                            loc.level === "medium" ? "marker-medium" :
-                                loc.level === "high" ? "marker-high" : "marker-unknown";
-
-                    const icon = L.divIcon({
-                        html: `<div class="custom-marker ${cls}" title="${loc.location}: ${loc.jobCount} jobs">${loc.jobCount}</div>`,
-                        className: "",
-                        iconSize: [30, 30],
-                        iconAnchor: [15, 30]
-                    });
-
-                    const marker = L.marker([loc.lat, loc.lng], { icon });
-
-                    let popupHTML = `<div style="font-size: 13px;">
-                        <b>${loc.location}</b><br>
-                        ${loc.jobCount} job${loc.jobCount === 1 ? "" : "s"}<br>
-                        Avg applicants: ${Math.round(loc.avgApplicants) || "N/A"}<br>
-                        <hr>`;
-
-                    loc.jobs.slice(0, 20).forEach(job => {
-                        popupHTML += `
-                            <div style="margin-bottom: 8px;">
-                                <strong>
-                                ${job.jobLink
-                                ? `<a href="${job.jobLink}" target="_blank" rel="noopener noreferrer">${job.title}</a>`
-                                : job.title
-                            }
-                                </strong><br>
-                                ${job.company} • ${job.jobFunction}<br>
-                                <small>${job.timeBucket} • ${job.degreeLevel}</small>
-                            </div>`;
-                    });
-
-                    popupHTML += `</div>`;
-                    marker.bindPopup(popupHTML);
-                    clusters.addLayer(marker);
-                });
-
-                mapInstance.addLayer(clusters);
-            } else {
-                console.warn("No geocoded jobs for map in this time window");
-            }
-
-            // ----------------- Beeswarm -----------------
-            const svg = d3.select("#beeswarm-svg");
-            svg.selectAll("*").remove();
-
-            const width = svg.node().clientWidth || 400;
-            const height = svg.node().clientHeight || 430;
-            const margin = { top: 10, right: 10, bottom: 10, left: 10 };
-            const innerWidth = width - margin.left - margin.right;
-            const innerHeight = height - margin.top - margin.bottom;
-
-            svg.attr("viewBox", `0 0 ${width} ${height}`);
-
-            const g = svg.append("g")
-                .attr("transform", `translate(${margin.left},${margin.top})`);
-
-            const rScale = d3.scaleSqrt()
-                .domain([0, d3.max(nodes, d => d.applicants || 0) || 1])
-                .range([3, 10]);
-
-            const DIM_INFO = {
-                jobFunction: {
-                    label: "Job Function",
-                    groups: topK(nodes, d => d.jobFunction, 8)
-                },
-                industry: {
-                    label: "Industry",
-                    groups: topK(nodes, d => d.industry, 8)
-                },
-                companyBucket: {
-                    label: "Companies",
-                    groups: ["Big Tech", "Consulting / Big 4", "Finance", "Other"]
-                },
-                timeBucket: {
-                    label: "Time Posted",
-                    groups: ["Last 24h", "Past week", "Past month", "Older", "Unknown"]
-                },
-                degreeLevel: {
-                    label: "Degree",
-                    groups: ["Bachelor's", "Master's", "PhD", "Associate's", "Enrolled", "High School", "Other"]
-                },
-                skills: {
-                    label: "Skills",
-                    groups: topSkills(nodes, 12)
-                }
-            };
-
-            function topK(arr, acc, k) {
-                const m = d3.rollup(arr, v => v.length, acc);
-                return Array.from(m, ([name]) => name)
-                    .sort(d3.ascending)
-                    .slice(0, k)
-                    .concat("Other");
-            }
-
-            function topSkills(arr, k) {
-                const counts = new Map();
-                arr.forEach(d => {
-                    (d.skills || []).forEach(s => {
-                        counts.set(s, (counts.get(s) || 0) + 1);
-                    });
-                });
-                const sorted = Array.from(counts.entries())
-                    .sort((a, b) => d3.descending(a[1], b[1]))
-                    .map(d => d[0]);
-                const top = sorted.slice(0, k);
-                return top.concat("Other");
-            }
-
-            function groupValue(dim, d) {
-                const info = DIM_INFO[dim];
-                if (!info) return "Other";
-
-                if (dim === "jobFunction") {
-                    return info.groups.includes(d.jobFunction) ? d.jobFunction : "Other";
-                }
-                if (dim === "industry") {
-                    return info.groups.includes(d.industry) ? d.industry : "Other";
-                }
-                if (dim === "companyBucket") {
-                    const bucket = (() => {
-                        const s = d.company.toLowerCase();
-                        if (/(google|meta|facebook|amazon|apple|microsoft|nvidia|netflix|adobe|salesforce|ibm|oracle)/.test(s)) {
-                            return "Big Tech";
-                        }
-                        if (/(mckinsey|bcg|bain|deloitte|pwc|kpmg|ey|accenture|capgemini)/.test(s)) {
-                            return "Consulting / Big 4";
-                        }
-                        if (/(goldman|morgan stanley|jpmorgan|jp morgan|bank of america|wells fargo|citigroup|ubs|barclays|blackrock|vanguard)/.test(s)) {
-                            return "Finance";
-                        }
-                        return "Other";
-                    })();
-                    return info.groups.includes(bucket) ? bucket : "Other";
-                }
-                if (dim === "timeBucket") {
-                    return info.groups.includes(d.timeBucket) ? d.timeBucket : "Other";
-                }
-                if (dim === "degreeLevel") {
-                    return info.groups.includes(d.degreeLevel) ? d.degreeLevel : "Other";
-                }
-                if (dim === "skills") {
-                    const primary = (d.skills && d.skills.length) ? d.skills[0] : "Other";
-                    return info.groups.includes(primary) ? primary : "Other";
-                }
-                return "Other";
-            }
-
-            function makeCentroids(groups) {
-                const n = groups.length;
-                const cols = innerWidth > 520 ? 2 : 1;
-                const rows = Math.ceil(n / cols);
-
-                const xPad = 40;
-                const yPad = 30;
-
-                const xs = d3.scalePoint()
-                    .domain(d3.range(cols))
-                    .range([xPad, innerWidth - xPad])
-                    .padding(0.5);
-
-                const ys = d3.scalePoint()
-                    .domain(d3.range(rows))
-                    .range([yPad, innerHeight - yPad])
-                    .padding(0.5);
-
-                const map = new Map();
-                groups.forEach((name, i) => {
-                    const c = i % cols;
-                    const r = Math.floor(i / cols);
-                    map.set(name, { x: xs(c), y: ys(r) });
-                });
-                return map;
-            }
-
-            let currentDim = "jobFunction";
-            let centroids = makeCentroids(DIM_INFO[currentDim].groups);
-
-            const tooltip = d3.select("#bs-tip");
-
-            const circles = g.append("g")
-                .attr("class", "circles")
-                .selectAll("circle")
-                .data(nodes, d => d.id)
-                .enter()
-                .append("circle")
-                .attr("r", d => rScale(d.applicants || 10))
-                .attr("fill", d => {
-                    if (d.timeBucket === "Last 24h") return "#22c55e";
-                    if (d.timeBucket === "Past week") return "#0ea5e9";
-                    return "#6b7280";
-                })
-                .attr("stroke", "rgba(0,0,0,0.4)")
-                .attr("stroke-width", 0.5)
-                .style("cursor", "pointer")
-                .on("mouseenter", function (event, d) {
-                    d3.select(this).attr("stroke-width", 1.5);
-                    tooltip
-                        .style("opacity", 1)
-                        .html(`
-                            <strong>${d.title}</strong><br>
-                            ${d.company} — ${d.location}<br>
-                            <i>${d.jobFunction} • ${d.industry} • ${d.timeBucket} • ${d.degreeLevel}</i>
-                        `)
-                        .style("left", (event.clientX + 12) + "px")
-                        .style("top", (event.clientY + 12) + "px");
-                })
-                .on("mousemove", function (event) {
-                    tooltip
-                        .style("left", (event.clientX + 12) + "px")
-                        .style("top", (event.clientY + 12) + "px");
-                })
-                .on("mouseleave", function () {
-                    d3.select(this).attr("stroke-width", 0.5);
-                    tooltip.style("opacity", 0);
-                });
-
-            const labelsLayer = g.append("g").attr("class", "labels");
-
-            function renderGroupLabels() {
-                const groups = DIM_INFO[currentDim].groups;
-                const cent = centroids;
-
-                const labels = labelsLayer.selectAll("text.group-label")
-                    .data(groups, d => d);
-
-                labels.enter()
-                    .append("text")
-                    .attr("class", "group-label")
-                    .attr("text-anchor", "middle")
-                    .attr("dominant-baseline", "middle")
-                    .merge(labels)
-                    .attr("x", d => cent.get(d).x)
-                    .attr("y", d => cent.get(d).y - 26)
-                    .text(d => d);
-
-                labels.exit().remove();
-            }
-
-            const simulation = d3.forceSimulation(nodes)
-                .alpha(1)
-                .velocityDecay(0.3)
-                .force("x", d3.forceX(d => centroids.get(groupValue(currentDim, d)).x).strength(0.12))
-                .force("y", d3.forceY(d => centroids.get(groupValue(currentDim, d)).y).strength(0.12))
-                .force("collide", d3.forceCollide(d => rScale(d.applicants || 10) + 1.5))
-                .on("tick", () => {
-                    circles
-                        .attr("cx", d => d.x = Math.max(8, Math.min(innerWidth - 8, d.x || innerWidth / 2)))
-                        .attr("cy", d => d.y = Math.max(8, Math.min(innerHeight - 8, d.y || innerHeight / 2)));
-                });
-
-            renderGroupLabels();
-
-            // Chips
-            let activeChip = "All";
-            const chipsWrap = d3.select("#bs-chips");
-
-            function renderChips() {
-                const groups = DIM_INFO[currentDim].groups;
-                const cats = ["All", ...groups];
-
-                const chips = chipsWrap.selectAll("div.chip")
-                    .data(cats, d => d);
-
-                chips.enter()
-                    .append("div")
-                    .attr("class", d => "chip" + (d === activeChip ? " active" : ""))
-                    .text(d => d)
-                    .on("click", (_, val) => {
-                        activeChip = val;
-                        chipsWrap.selectAll(".chip").classed("active", d => d === activeChip);
-                        applyFilter();
-                    });
-
-                chips
-                    .classed("active", d => d === activeChip)
-                    .text(d => d);
-
-                chips.exit().remove();
-            }
-
-            function applyFilter() {
-                circles
-                    .transition()
-                    .duration(200)
-                    .style("opacity", d => {
-                        const gVal = groupValue(currentDim, d);
-                        if (activeChip === "All") return 1;
-                        return gVal === activeChip ? 1 : 0.15;
-                    });
-            }
-
-            renderChips();
-            applyFilter();
-
-            // Dimension switching
-            d3.selectAll(".segmented button").on("click", function () {
-                const dim = this.getAttribute("data-dim");
-                if (dim === currentDim) return;
-
-                d3.selectAll(".segmented button").classed("active", false);
-                d3.select(this).classed("active", true);
-
-                currentDim = dim;
-                centroids = makeCentroids(DIM_INFO[currentDim].groups);
-                simulation
-                    .force("x", d3.forceX(d => centroids.get(groupValue(currentDim, d)).x).strength(0.12))
-                    .force("y", d3.forceY(d => centroids.get(groupValue(currentDim, d)).y).strength(0.12));
-                simulation.alpha(0.9).restart();
-
-                activeChip = "All";
-                renderChips();
-                renderGroupLabels();
-                applyFilter();
-            });
-        }
-
-        // ----------------- Kick everything off -----------------
-        loadOverview();
-        loadDailyCounts();
-        loadJobsByFunctionAll();
-        loadJobsByFunction7d();
-        loadWorkMode7d();
-        loadHourlyCounts24h();
-        loadMapAndBeeswarm();
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', initDashboard);
 
         // Auto-refresh every 3 minutes
         setInterval(() => {
-            loadOverview();
-            loadDailyCounts();
-            loadJobsByFunctionAll();
-            loadJobsByFunction7d();
-            loadWorkMode7d();
-            loadHourlyCounts24h();
-            loadMapAndBeeswarm();
+            loadPulseMetrics();
+            loadCompetitionHeatmap();
+            loadTrendingSkills();
         }, 3 * 60 * 1000);
     </script>
 </body>
