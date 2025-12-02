@@ -116,14 +116,14 @@ flowchart LR
 
 ## 🔧 Components Deep Dive
 
-### 1️⃣ Data Collection Layer
+### Data Collection Layer
 
 | Component            | File          | Description                                                                                                                                                    |
 | -------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **LinkedIn Scraper** | `scraper.py`  | Scrapes LinkedIn's public jobs API (`jobs-guest`) for data/analytics internships. Extracts job details, descriptions, application links, and applicant counts. |
 | **Kafka Producer**   | `producer.py` | Serializes scraped jobs to JSON and publishes to the `job_postings` Kafka topic. Runs on a configurable interval (default: every 30 minutes).                  |
 
-### 2️⃣ Stream Processing Layer
+### Stream Processing Layer
 
 | Component           | File                  | Description                                                                                                           |
 | ------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -277,13 +277,13 @@ Job_Market_Stream/
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer              | Technology                            |
 | ------------------ | ------------------------------------- |
 | **Scraping**       | Python, BeautifulSoup, Requests       |
 | **Streaming**      | Apache Kafka (Redpanda), kafka-python |
-| **Storage**        | DuckDB (OLAP), CSV (staging)          |
+| **Storage**        | DuckDB, CSV (staging)                 |
 | **API**            | FastAPI, Uvicorn                      |
 | **Visualization**  | D3.js, Leaflet, MarkerCluster         |
 | **Geocoding**      | OpenStreetMap Nominatim               |
@@ -292,7 +292,7 @@ Job_Market_Stream/
 
 ---
 
-## 📈 Skills Extraction
+## Skills Extraction
 
 The parser extracts **70+ technical skills** organized into categories:
 
@@ -308,7 +308,7 @@ The parser extracts **70+ technical skills** organized into categories:
 
 ---
 
-## 🌐 Live Demo
+## Live Demo
 
 <p align="center">
   <a href="https://junewayne.github.io/Job_Market_Stream/">
@@ -318,35 +318,6 @@ The parser extracts **70+ technical skills** organized into categories:
 
 **Dashboard URL:** [https://junewayne.github.io/Job_Market_Stream/](https://junewayne.github.io/Job_Market_Stream/)
 
----
-
-## 📊 Sample Metrics
-
-> Data refreshes every 30 minutes during active scraping sessions.
-
-- **Total Jobs Tracked**: 10,000+
-- **Unique Companies**: 2,000+
-- **Geographic Coverage**: United States
-- **Time Range**: Rolling 180 days
-- **Skills Identified**: 70+ technical skills
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Feel free to:
-- 🐛 Report bugs
-- 💡 Suggest features
-- 🔧 Submit pull requests
-
----
-
-## 📄 License
-
-This project is for educational and research purposes. Please respect LinkedIn's Terms of Service and rate limits when scraping.
-
----
-
 <p align="center">
-  Made with ❤️ for data science job seekers
+  Made with love for data science job seekers
 </p>
