@@ -2,34 +2,64 @@
 
 from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import duckdb
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+import traceback
 
 DB_PATH = Path("data/jobs.duckdb")
 
+# -------------------------------------------------------------
+# Create FastAPI app
+# -------------------------------------------------------------
 app = FastAPI(title="Job Market Analytics API")
 
 # -------------------------------------------------------------
-# CORS – permissive so GitHub Pages can talk to Render
+# CORS - MUST be added IMMEDIATELY after app creation
 # -------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],       # you can tighten this later
+    allow_origins=["*"],  # Allow all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],  # Add this to expose all headers
 )
 
+# -------------------------------------------------------------
+# Global exception handler to ensure CORS headers on errors
+# -------------------------------------------------------------
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Ensure CORS headers are sent even when errors occur."""
+    print(f"Error: {exc}")
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
+# -------------------------------------------------------------
+# Health check endpoint for debugging
+# -------------------------------------------------------------
+@app.get("/health")
+async def health_check():
+    """Simple health check endpoint."""
+    return {"status": "ok", "cors": "enabled"}
 
 def get_conn():
     """Open a read-only connection to the DuckDB file."""
     if not DB_PATH.exists():
         raise RuntimeError(f"DuckDB file {DB_PATH} does not exist.")
     return duckdb.connect(str(DB_PATH), read_only=True)
-
 
 # -------------------------------------------------------------
 # Helpers
@@ -383,3 +413,41 @@ def map_jobs_alias(
     Alias so the frontend can call /api/map_jobs or /api/beeswarm_jobs.
     """
     return _raw_beeswarm_query(limit=limit, hours=hours)
+
+
+# -------------------------------------------------------------
+# OPTIONS handler for preflight requests
+# -------------------------------------------------------------
+@app.options("/{full_path:path}")
+async def options_handler():
+    """Handle preflight OPTIONS requests."""
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
+# -------------------------------------------------------------
+# Root endpoint
+# -------------------------------------------------------------
+@app.get("/")
+async def root():
+    """Root endpoint with API info."""
+    return {
+        "message": "Job Market Analytics API",
+        "endpoints": [
+            "/api/overview",
+            "/api/jobs_by_function",
+            "/api/work_mode",
+            "/api/top_skills",
+            "/api/daily_counts",
+            "/api/hourly_counts",
+            "/api/beeswarm_jobs",
+            "/api/map_jobs",
+            "/health"
+        ],
+        "cors": "enabled"
+    }
