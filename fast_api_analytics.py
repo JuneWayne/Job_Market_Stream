@@ -53,41 +53,42 @@ def get_conn():
     return duckdb.connect(str(DB_PATH), read_only=True)
 
 
-# Cache for whether scraped_at column exists (checked once, remembered forever)
-_scraped_at_exists = None
+# Cache: None = not checked yet, True = usable scraped_at, False = not usable
+_scraped_at_usable = None
 
 def get_time_column(conn) -> str:
     """
     Figure out which time column to use for "recent jobs" queries.
     
     We have two time columns:
-    - time_posted_parsed: when LinkedIn says the job was posted
+    - time_posted_parsed: when LinkedIn says the job was posted  
     - scraped_at: when WE actually scraped it (newer data only)
     
-    If scraped_at column exists in the table schema, we use COALESCE.
-    If not, we just use time_posted_parsed.
-    
-    We cache the result so we only check once per server restart.
+    scraped_at must exist AND be a TIMESTAMP type (not INTEGER from NULL).
+    If it's not usable, we just use time_posted_parsed.
     """
-    global _scraped_at_exists
+    global _scraped_at_usable
     
-    if _scraped_at_exists is None:
-        # Check if scraped_at column exists in the table schema (not just data)
+    if _scraped_at_usable is None:
         try:
             check_conn = duckdb.connect(str(DB_PATH), read_only=True)
-            # Check the actual table schema, not just try to select
+            # Check if scraped_at exists AND is a timestamp type (not INTEGER)
             result = check_conn.execute("""
-                SELECT column_name 
+                SELECT data_type 
                 FROM information_schema.columns 
                 WHERE table_name = 'jobs' AND column_name = 'scraped_at'
             """).fetchone()
             check_conn.close()
-            _scraped_at_exists = result is not None
+            
+            # Only usable if it's a timestamp type
+            if result and 'TIMESTAMP' in result[0].upper():
+                _scraped_at_usable = True
+            else:
+                _scraped_at_usable = False
         except:
-            _scraped_at_exists = False
+            _scraped_at_usable = False
     
-    if _scraped_at_exists:
-        # Use scraped_at if available, fall back to time_posted_parsed for old rows
+    if _scraped_at_usable:
         return "COALESCE(scraped_at, time_posted_parsed)"
     return "time_posted_parsed"
 

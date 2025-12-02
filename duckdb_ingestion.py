@@ -51,9 +51,9 @@ def main():
             END AS scraped_at
         """
     else:
-        scraped_at_clause = """
-            NULL AS scraped_at
-        """
+        # Cast NULL to TIMESTAMPTZ so it matches time_posted_parsed type
+        # This is important for COALESCE to work in the API queries
+        scraped_at_clause = "CAST(NULL AS TIMESTAMP WITH TIME ZONE) AS scraped_at"
 
     # Step 1: read the CSV into DuckDB and normalize basic fields / timestamps
     conn.execute(
