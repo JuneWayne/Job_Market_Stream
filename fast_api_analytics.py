@@ -63,6 +63,18 @@ def get_conn():
     return duckdb.connect(str(DB_PATH), read_only=True)
 
 
+def get_time_column(conn) -> str:
+    """
+    Check if scraped_at column exists, return the appropriate time column expression.
+    Falls back to time_posted_parsed if scraped_at doesn't exist.
+    """
+    try:
+        conn.execute("SELECT scraped_at FROM jobs LIMIT 1").fetchone()
+        return "COALESCE(scraped_at, time_posted_parsed)"
+    except:
+        return "time_posted_parsed"
+
+
 # -------------------------------------------------------------
 # Helpers
 # -------------------------------------------------------------
@@ -137,6 +149,8 @@ def jobs_by_function(days: Optional[int] = None):
     If days is provided, filter to jobs scraped in last `days` days.
     """
     conn = get_conn()
+    time_col = get_time_column(conn)
+    
     if days is None:
         df = conn.execute(
             """
@@ -151,12 +165,12 @@ def jobs_by_function(days: Optional[int] = None):
     else:
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         df = conn.execute(
-            """
+            f"""
             SELECT
                 COALESCE(job_function, 'Unknown') AS job_function,
                 COUNT(*) AS count
             FROM jobs
-            WHERE COALESCE(scraped_at, time_posted_parsed) >= ?
+            WHERE {time_col} >= ?
             GROUP BY 1
             ORDER BY count DESC;
             """,
@@ -176,6 +190,8 @@ def work_mode(days: Optional[int] = None):
     If days is provided, filter to jobs scraped in last `days` days.
     """
     conn = get_conn()
+    time_col = get_time_column(conn)
+    
     if days is None:
         df = conn.execute(
             """
@@ -190,12 +206,12 @@ def work_mode(days: Optional[int] = None):
     else:
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         df = conn.execute(
-            """
+            f"""
             SELECT
                 COALESCE(work_mode, 'Unknown') AS work_mode,
                 COUNT(*) AS count
             FROM jobs
-            WHERE COALESCE(scraped_at, time_posted_parsed) >= ?
+            WHERE {time_col} >= ?
             GROUP BY 1
             ORDER BY count DESC;
             """,
@@ -215,6 +231,7 @@ def top_skills(limit: int = 30, days: Optional[int] = None):
     Assumes a column `skills` with comma-separated values.
     """
     conn = get_conn()
+    time_col = get_time_column(conn)
 
     base_query = """
         WITH exploded AS (
@@ -229,7 +246,7 @@ def top_skills(limit: int = 30, days: Optional[int] = None):
 
     if days is not None:
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-        base_query += " AND COALESCE(scraped_at, time_posted_parsed) >= ? "
+        base_query += f" AND {time_col} >= ? "
         params.append(cutoff)
 
     base_query += """
@@ -283,15 +300,16 @@ def daily_counts(days: int = 180):
 def hourly_counts(hours: int = 24):
     """Jobs scraped per hour for the last `hours` hours."""
     conn = get_conn()
+    time_col = get_time_column(conn)
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     df = conn.execute(
-        """
+        f"""
         SELECT
-            date_trunc('hour', COALESCE(scraped_at, time_posted_parsed)) AS hour,
+            date_trunc('hour', {time_col}) AS hour,
             COUNT(*) AS job_count
         FROM jobs
-        WHERE COALESCE(scraped_at, time_posted_parsed) IS NOT NULL
-          AND COALESCE(scraped_at, time_posted_parsed) >= ?
+        WHERE {time_col} IS NOT NULL
+          AND {time_col} >= ?
         GROUP BY 1
         ORDER BY hour;
         """,
@@ -430,17 +448,18 @@ def competition_heatmap(days: int = 30):
 def skills_network(limit: int = 50, days: int = 30):
     """Skill co-occurrence data for network visualization (nodes only for now). Uses scraped_at."""
     conn = get_conn()
+    time_col = get_time_column(conn)
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
     top_skills_df = conn.execute(
-        """
+        f"""
         WITH exploded AS (
             SELECT job_id, TRIM(skill) AS skill
             FROM jobs,
                  UNNEST(string_split(skills, ',')) AS t(skill)
             WHERE skills IS NOT NULL
               AND skills <> ''
-              AND COALESCE(scraped_at, time_posted_parsed) >= ?
+              AND {time_col} >= ?
         )
         SELECT
             skill,
@@ -566,21 +585,22 @@ def job_lifecycle():
 def trending_skills(days_back: int = 30, top_n: int = 20):
     """Skills with biggest growth/decline in demand. Uses scraped_at for time comparison."""
     conn = get_conn()
+    time_col = get_time_column(conn)
     mid_date = datetime.now(timezone.utc) - timedelta(days=days_back // 2)
     start_date = datetime.now(timezone.utc) - timedelta(days=days_back)
 
     df = conn.execute(
-        """
+        f"""
         WITH skill_periods AS (
             SELECT
                 TRIM(skill) AS skill,
-                CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN 'recent' ELSE 'older' END AS period,
+                CASE WHEN {time_col} >= ? THEN 'recent' ELSE 'older' END AS period,
                 COUNT(*) AS mentions
             FROM jobs,
                  UNNEST(string_split(skills, ',')) AS t(skill)
             WHERE skills IS NOT NULL
               AND skills <> ''
-              AND COALESCE(scraped_at, time_posted_parsed) >= ?
+              AND {time_col} >= ?
               AND TRIM(skill) <> ''
             GROUP BY TRIM(skill), period
         ),
@@ -722,8 +742,10 @@ def pulse_metrics():
     Real-time metrics based on WHEN JOBS WERE SCRAPED (scraped_at),
     not when they were originally posted on LinkedIn (time_posted_parsed).
     This shows actual recent scraping activity.
+    Falls back to time_posted_parsed if scraped_at column doesn't exist.
     """
     conn = get_conn()
+    time_col = get_time_column(conn)
 
     now = datetime.now(timezone.utc)
     last_hour = now - timedelta(hours=1)
@@ -731,22 +753,21 @@ def pulse_metrics():
     last_week = now - timedelta(days=7)
 
     row = conn.execute(
-        """
+        f"""
         SELECT 
-            -- Use scraped_at to count recently SCRAPED jobs (with fallback to time_posted_parsed for old data)
-            COUNT(CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN 1 END) AS last_hour_jobs,
-            COUNT(CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN 1 END) AS last_24h_jobs,
-            COUNT(CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN 1 END) / (7.0 * 24) AS weekly_avg_per_hour,
+            COUNT(CASE WHEN {time_col} >= ? THEN 1 END) AS last_hour_jobs,
+            COUNT(CASE WHEN {time_col} >= ? THEN 1 END) AS last_24h_jobs,
+            COUNT(CASE WHEN {time_col} >= ? THEN 1 END) / (7.0 * 24) AS weekly_avg_per_hour,
             MODE() WITHIN GROUP (
-                ORDER BY CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN location END
+                ORDER BY CASE WHEN {time_col} >= ? THEN location END
             ) AS hottest_location,
             MODE() WITHIN GROUP (
-                ORDER BY CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN job_function END
+                ORDER BY CASE WHEN {time_col} >= ? THEN job_function END
             ) AS hottest_function,
-            MAX(CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN num_applicants_int END) AS max_applicants_recent,
-            AVG(CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN num_applicants_int END) AS avg_applicants_recent
+            MAX(CASE WHEN {time_col} >= ? THEN num_applicants_int END) AS max_applicants_recent,
+            AVG(CASE WHEN {time_col} >= ? THEN num_applicants_int END) AS avg_applicants_recent
         FROM jobs
-        WHERE COALESCE(scraped_at, time_posted_parsed) IS NOT NULL;
+        WHERE {time_col} IS NOT NULL;
         """,
         [
             last_hour,
