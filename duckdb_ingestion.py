@@ -2,6 +2,7 @@
 import duckdb
 from pathlib import Path
 import logging
+import csv
 from geo_encode import update_geo_locations
 DATA_CSV = Path("data/parsed_jobs.csv")
 DB_PATH = Path("data/jobs.duckdb")
@@ -13,6 +14,14 @@ logging.basicConfig(
 logger = logging.getLogger("duckdb_ingestion")
 
 
+def csv_has_column(csv_path: Path, column_name: str) -> bool:
+    """Check if a CSV file has a specific column in its header."""
+    with open(csv_path, 'r', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        header = next(reader, [])
+        return column_name in header
+
+
 def main():
     if not DATA_CSV.exists():
         raise FileNotFoundError(
@@ -20,10 +29,34 @@ def main():
         )
 
     conn = duckdb.connect(str(DB_PATH))
+    
+    # Check if CSV has scraped_at column
+    has_scraped_at = csv_has_column(DATA_CSV, 'scraped_at')
+    logger.info(f"CSV has scraped_at column: {has_scraped_at}")
+
+    # Build scraped_at parsing clause conditionally
+    if has_scraped_at:
+        scraped_at_clause = """
+            -- Parse scraped_at timestamp (when the job was actually collected)
+            CASE
+                WHEN scraped_at IS NULL OR scraped_at = '' THEN NULL
+                ELSE COALESCE(
+                    TRY_STRPTIME(scraped_at, '%Y-%m-%dT%H:%M:%S.%f%z'),
+                    TRY_STRPTIME(scraped_at, '%Y-%m-%dT%H:%M:%S%z'),
+                    TRY_STRPTIME(scraped_at, '%Y-%m-%dT%H:%M:%S'),
+                    TRY_STRPTIME(scraped_at, '%Y-%m-%d %H:%M:%S')
+                )
+            END AS scraped_at
+        """
+    else:
+        scraped_at_clause = """
+            -- No scraped_at in CSV, use NULL
+            NULL AS scraped_at
+        """
 
     # 1) Load CSV into a raw jobs table
     conn.execute(
-        """
+        f"""
         CREATE OR REPLACE TABLE jobs AS
         WITH raw AS (
             SELECT *
@@ -57,16 +90,7 @@ def main():
 
             work_mode,
 
-            -- Parse scraped_at timestamp (when the job was actually collected)
-            CASE
-                WHEN scraped_at IS NULL OR scraped_at = '' THEN NULL
-                ELSE COALESCE(
-                    TRY_STRPTIME(scraped_at, '%Y-%m-%dT%H:%M:%S.%f%z'),
-                    TRY_STRPTIME(scraped_at, '%Y-%m-%dT%H:%M:%S%z'),
-                    TRY_STRPTIME(scraped_at, '%Y-%m-%dT%H:%M:%S'),
-                    TRY_STRPTIME(scraped_at, '%Y-%m-%d %H:%M:%S')
-                )
-            END AS scraped_at
+            {scraped_at_clause}
         FROM raw;
         """,
         [str(DATA_CSV)],
@@ -112,7 +136,7 @@ def main():
     conn.execute("DROP TABLE jobs")
     conn.execute("ALTER TABLE jobs_dedup RENAME TO jobs")
 
-    # 3) sorted view/table built from *deduped* jobs
+    # sorted view/table built from deduplicated jobs
     conn.execute(
         """
         CREATE OR REPLACE TABLE jobs_sorted AS
