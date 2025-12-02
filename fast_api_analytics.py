@@ -64,7 +64,7 @@ def get_time_column(conn) -> str:
     - time_posted_parsed: when LinkedIn says the job was posted
     - scraped_at: when WE actually scraped it (newer data only)
     
-    If scraped_at exists, we use it (with fallback to time_posted_parsed for old rows).
+    If scraped_at column exists in the table schema, we use COALESCE.
     If not, we just use time_posted_parsed.
     
     We cache the result so we only check once per server restart.
@@ -72,16 +72,22 @@ def get_time_column(conn) -> str:
     global _scraped_at_exists
     
     if _scraped_at_exists is None:
-        # Check using a fresh connection to avoid messing with the main one
+        # Check if scraped_at column exists in the table schema (not just data)
         try:
             check_conn = duckdb.connect(str(DB_PATH), read_only=True)
-            check_conn.execute("SELECT scraped_at FROM jobs LIMIT 1").fetchone()
+            # Check the actual table schema, not just try to select
+            result = check_conn.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'jobs' AND column_name = 'scraped_at'
+            """).fetchone()
             check_conn.close()
-            _scraped_at_exists = True
+            _scraped_at_exists = result is not None
         except:
             _scraped_at_exists = False
     
     if _scraped_at_exists:
+        # Use scraped_at if available, fall back to time_posted_parsed for old rows
         return "COALESCE(scraped_at, time_posted_parsed)"
     return "time_posted_parsed"
 
