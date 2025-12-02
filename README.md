@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://junewayne.github.io/Job_Market_Stream/">🌐 <strong>View Live Dashboard</strong></a>
+  <a href="https://junewayne.github.io/Job_Market_Stream/"><strong>View Live Dashboard</strong></a>
 </p>
 
 ---
