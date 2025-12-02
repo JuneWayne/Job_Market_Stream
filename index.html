@@ -52,6 +52,13 @@
             margin-top: 1rem;
         }
 
+        .today-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr);
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
         .card {
             background: #020617;
             border-radius: 0.75rem;
@@ -139,14 +146,13 @@
         /* --- Map + Beeswarm layout --- */
         .map-beeswarm-grid {
             display: grid;
-            grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+            grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
             gap: 1rem;
         }
 
         #map {
             width: 100%;
-            height: 430px;
-            /* bigger map */
+            height: 450px;
             border-radius: 0.75rem;
             overflow: hidden;
         }
@@ -241,8 +247,7 @@
         /* Beeswarm */
         #beeswarm-svg {
             width: 100%;
-            height: 430px;
-            /* bigger beeswarm */
+            height: 450px;
         }
 
         #bs-header {
@@ -332,21 +337,111 @@
         .leaflet-marker-icon.dim {
             filter: grayscale(1) opacity(0.25);
         }
+
+        /* Recent jobs list */
+        #recent-jobs-list {
+            max-height: 320px;
+            overflow-y: auto;
+            margin-top: 0.25rem;
+        }
+
+        .job-card {
+            border-radius: 0.6rem;
+            border: 1px solid #1f2937;
+            padding: 0.6rem 0.75rem;
+            margin-bottom: 0.5rem;
+            background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), rgba(15, 23, 42, 1));
+        }
+
+        .job-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .job-title-row h4 {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .job-meta {
+            font-size: 0.78rem;
+            color: #9ca3af;
+            margin-top: 0.12rem;
+        }
+
+        .job-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin-top: 0.35rem;
+        }
+
+        .job-tag {
+            font-size: 0.7rem;
+            border-radius: 999px;
+            padding: 2px 7px;
+            border: 1px solid #334155;
+            color: #e5e7eb;
+        }
+
+        .job-tag.primary {
+            background: #22c55e;
+            border-color: #22c55e;
+            color: #022c22;
+            font-weight: 600;
+        }
+
+        .job-tag.subtle {
+            background: rgba(15, 23, 42, 0.9);
+        }
+
+        .job-apply {
+            font-size: 0.7rem;
+            padding: 4px 8px;
+            border-radius: 999px;
+            border: none;
+            background: #38bdf8;
+            color: #0b1120;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .job-apply:hover {
+            filter: brightness(1.1);
+        }
     </style>
 </head>
 
 <body>
     <h1>Job Market Live Dashboard</h1>
     <div class="subtitle">
-        Historical trends on the left • Recent patterns & live map on the right.
+        Historical trends on the left • Fresh activity & live map on the right.
     </div>
 
     <!-- Overview row -->
     <div class="card" id="overview-card">
-        <h3>Overview</h3>
-        <small>Summary of all jobs in DuckDB (<code>jobs</code> table)</small>
+        <h3>Overall overview</h3>
+        <small>Entire DuckDB <code>jobs</code> history</small>
         <div class="overview-grid" id="overview-stats"></div>
         <div id="overview-error" class="error-msg"></div>
+    </div>
+
+    <!-- Today snapshot + latest jobs -->
+    <div class="today-grid">
+        <div class="card">
+            <h3>Today’s snapshot</h3>
+            <small>Jobs posted in the last 24 hours (by time_posted_parsed)</small>
+            <div class="overview-grid" id="today-stats"></div>
+        </div>
+        <div class="card">
+            <h3>Latest jobs (last 24 hours)</h3>
+            <small>Most recent postings with direct links</small>
+            <div id="recent-jobs-list"></div>
+        </div>
     </div>
 
     <div class="grid">
@@ -389,8 +484,8 @@
 
     <h2>Live Map & Beeswarm Explorer</h2>
     <div class="subtitle">
-        Explore where postings are clustered and how they distribute by function, industry,
-        company type, time posted, skills, and degree.
+        Explore where fresh postings are clustered and how they distribute by function, industry,
+        company type, time posted, skills, and degree (last 24 hours only).
     </div>
 
     <div class="card">
@@ -427,13 +522,30 @@
 
     <script>
         const API_BASE = "https://job-market-stream.onrender.com";
-
-        let mapInstance = null; // keep track of Leaflet map so we can re-init safely
+        let mapInstance = null;
 
         // ---------- Helpers ----------
         function renderError(containerId, msg) {
             const el = document.getElementById(containerId);
             if (el) el.textContent = msg;
+        }
+
+        function mode(values, fallback = "Unknown") {
+            const counts = new Map();
+            values.forEach(v => {
+                if (!v || v === "Unknown") return;
+                counts.set(v, (counts.get(v) || 0) + 1);
+            });
+            if (!counts.size) return fallback;
+            let best = null;
+            let bestCount = -1;
+            counts.forEach((cnt, key) => {
+                if (cnt > bestCount) {
+                    best = key;
+                    bestCount = cnt;
+                }
+            });
+            return best || fallback;
         }
 
         // ---------- Overview ----------
@@ -815,12 +927,132 @@
             }
         }
 
+        // ---------- Today snapshot + recent jobs ----------
+        function updateTodaySnapshot(jobs) {
+            const container = d3.select("#today-stats");
+            if (container.empty()) return;
+            container.selectAll("*").remove();
+
+            if (!jobs || !jobs.length) {
+                container.append("div").attr("class", "error-msg").text("No jobs in the last 24 hours.");
+                return;
+            }
+
+            const total = jobs.length;
+            const remote = jobs.filter(j => (j.work_mode || "").toLowerCase().includes("remote")).length;
+            const hybrid = jobs.filter(j => (j.work_mode || "").toLowerCase().includes("hybrid")).length;
+            const onsite = jobs.filter(j => (j.work_mode || "").toLowerCase().includes("on-site") || (j.work_mode || "").toLowerCase().includes("on site")).length;
+
+            const remoteShare = total ? Math.round(remote * 100 / total) : 0;
+
+            const topFunction = mode(jobs.map(j => j.job_function || j["Job Function"] || "Unknown"));
+            const topLocation = mode(jobs.map(j => j.location || "Unknown"));
+
+            const stats = [
+                { label: "New jobs (24h)", value: total },
+                { label: "Remote share", value: `${remoteShare}%` },
+                { label: "Top function", value: topFunction },
+                { label: "Most active city", value: topLocation },
+            ];
+
+            const pills = container.selectAll(".stat-pill")
+                .data(stats)
+                .enter()
+                .append("div")
+                .attr("class", "stat-pill");
+
+            pills.append("div")
+                .attr("class", "stat-label")
+                .text(d => d.label.toUpperCase());
+
+            pills.append("div")
+                .attr("class", "stat-value")
+                .text(d => d.value);
+        }
+
+        function renderRecentJobs(jobs) {
+            const container = document.getElementById("recent-jobs-list");
+            if (!container) return;
+            container.innerHTML = "";
+
+            if (!jobs || !jobs.length) {
+                const msg = document.createElement("div");
+                msg.className = "error-msg";
+                msg.textContent = "No jobs in the last 24 hours.";
+                container.appendChild(msg);
+                return;
+            }
+
+            const latestJobs = jobs.slice(0, 40); // show top 40 most recent
+
+            latestJobs.forEach(job => {
+                const title = job.job_title || "Untitled role";
+                const company = job.company_name || "Unknown company";
+                const location = job.location || "Unknown location";
+                const fn = job.job_function || job["Job Function"] || "Unknown";
+                const workMode = job.work_mode || "Work mode N/A";
+                const age = job.time_posted || ""; // "2 hours ago"
+                const link = job.job_link || job.application_link || null;
+
+                const card = document.createElement("div");
+                card.className = "job-card";
+
+                const titleRow = document.createElement("div");
+                titleRow.className = "job-title-row";
+
+                const h4 = document.createElement("h4");
+                if (link) {
+                    h4.innerHTML = `<a href="${link}" target="_blank" rel="noopener noreferrer">${title}</a>`;
+                } else {
+                    h4.textContent = title;
+                }
+                titleRow.appendChild(h4);
+
+                if (link) {
+                    const btn = document.createElement("button");
+                    btn.className = "job-apply";
+                    btn.textContent = "View";
+                    btn.onclick = () => window.open(link, "_blank", "noopener");
+                    titleRow.appendChild(btn);
+                }
+
+                const meta = document.createElement("div");
+                meta.className = "job-meta";
+                meta.textContent = `${company} • ${location}${age ? " • " + age : ""}`;
+
+                const tags = document.createElement("div");
+                tags.className = "job-tags";
+
+                const fnTag = document.createElement("span");
+                fnTag.className = "job-tag primary";
+                fnTag.textContent = fn;
+                tags.appendChild(fnTag);
+
+                const wmTag = document.createElement("span");
+                wmTag.className = "job-tag subtle";
+                wmTag.textContent = workMode;
+                tags.appendChild(wmTag);
+
+                card.appendChild(titleRow);
+                card.appendChild(meta);
+                card.appendChild(tags);
+
+                container.appendChild(card);
+            });
+        }
+
         // ---------- Map + Beeswarm ----------
         async function loadMapAndBeeswarm() {
             try {
-                const res = await fetch(`${API_BASE}/api/beeswarm_jobs?limit=2500`);
+                // last 24 hours ONLY, lighter payload
+                const res = await fetch(`${API_BASE}/api/beeswarm_jobs?limit=1200&days=1`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const jobs = await res.json();
+
+                // update "today" metrics + job list before heavy viz
+                updateTodaySnapshot(jobs);
+                renderRecentJobs(jobs);
+
                 initMapAndBeeswarm(jobs);
             } catch (err) {
                 console.error("Error loading beeswarm_jobs", err);
@@ -830,7 +1062,6 @@
         function initMapAndBeeswarm(jobs) {
             if (!jobs || jobs.length === 0) return;
 
-            // ---- Preprocess jobs ----
             const clean = v => (v || "Unknown").toString().trim();
 
             const toInt = x => {
@@ -887,9 +1118,12 @@
             const nodes = jobs.map((j, i) => {
                 const loc = clean(j.location);
                 const applicants = toInt(j.num_applicants);
-                const timeBucket = bucketTime(j.time_posted_parsed);
+                const timeBucket = bucketTime(j.time_posted); // use friendly "2 hours ago"
                 const deg = degreeLevel(j.degree_qualifications);
-                const skillsArr = extractSkills(j.skills);
+                const skillsArr = extractSkills(j.skills || j.skills_desired);
+
+                const fnRaw = j.job_function || j["Job Function"];
+                const industryRaw = j.industry || j["Industries"];
 
                 return {
                     id: j.job_id ?? i,
@@ -898,14 +1132,14 @@
                     location: loc,
                     lat: j.latitude,
                     lng: j.longitude,
-                    jobFunction: clean(j.job_function),
-                    industry: clean(j.industry),
+                    jobFunction: clean(fnRaw),
+                    industry: clean(industryRaw),
                     timeBucket,
                     degreeLevel: deg,
                     workMode: clean(j.work_mode),
                     applicants,
                     skills: skillsArr,
-                    jobLink: j.job_link,
+                    jobLink: j.job_link || j.application_link,
                     companyBucket: companyBucket(j.company_name)
                 };
             });
@@ -918,13 +1152,12 @@
                 !Number.isNaN(d.lng)
             );
 
-            // Safely (re)create the map
             if (mapInstance) {
                 mapInstance.remove();
                 mapInstance = null;
             }
 
-            mapInstance = L.map("map").setView([38.0, -95.0], 4); // center roughly on US
+            mapInstance = L.map("map").setView([38.0, -95.0], 4);
             L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
                 attribution: "© OpenStreetMap contributors"
             }).addTo(mapInstance);
@@ -979,23 +1212,23 @@
                     const marker = L.marker([loc.lat, loc.lng], { icon });
 
                     let popupHTML = `<div style="font-size: 13px;">
-                        <b>${loc.location}</b><br>
-                        ${loc.jobCount} job${loc.jobCount === 1 ? "" : "s"}<br>
-                        Avg applicants: ${Math.round(loc.avgApplicants) || "N/A"}<br>
-                        <hr>`;
+              <b>${loc.location}</b><br>
+              ${loc.jobCount} job${loc.jobCount === 1 ? "" : "s"}<br>
+              Avg applicants: ${Math.round(loc.avgApplicants) || "N/A"}<br>
+              <hr>`;
 
                     loc.jobs.slice(0, 20).forEach(job => {
                         popupHTML += `
-                            <div style="margin-bottom: 8px;">
-                                <strong>
-                                ${job.jobLink
+                  <div style="margin-bottom: 8px;">
+                    <strong>
+                      ${job.jobLink
                                 ? `<a href="${job.jobLink}" target="_blank" rel="noopener noreferrer">${job.title}</a>`
                                 : job.title
                             }
-                                </strong><br>
-                                ${job.company} • ${job.jobFunction}<br>
-                                <small>${job.timeBucket} • ${job.degreeLevel}</small>
-                            </div>`;
+                    </strong><br>
+                    ${job.company} • ${job.jobFunction}<br>
+                    <small>${job.timeBucket} • ${job.degreeLevel}</small>
+                  </div>`;
                     });
 
                     popupHTML += `</div>`;
@@ -1013,7 +1246,7 @@
             svg.selectAll("*").remove();
 
             const width = svg.node().clientWidth || 400;
-            const height = svg.node().clientHeight || 430;
+            const height = svg.node().clientHeight || 450;
             const margin = { top: 10, right: 10, bottom: 10, left: 10 };
             const innerWidth = width - margin.left - margin.right;
             const innerHeight = height - margin.top - margin.bottom;
@@ -1154,10 +1387,10 @@
                     tooltip
                         .style("opacity", 1)
                         .html(`
-                            <strong>${d.title}</strong><br>
-                            ${d.company} — ${d.location}<br>
-                            <i>${d.jobFunction} • ${d.industry} • ${d.timeBucket} • ${d.degreeLevel}</i>
-                        `)
+                <strong>${d.title}</strong><br>
+                ${d.company} — ${d.location}<br>
+                <i>${d.jobFunction} • ${d.industry} • ${d.timeBucket} • ${d.degreeLevel}</i>
+              `)
                         .style("left", (event.clientX + 12) + "px")
                         .style("top", (event.clientY + 12) + "px");
                 })
@@ -1206,7 +1439,6 @@
 
             renderGroupLabels();
 
-            // Chips
             let activeChip = "All";
             const chipsWrap = d3.select("#bs-chips");
 
@@ -1248,7 +1480,6 @@
             renderChips();
             applyFilter();
 
-            // Dimension switching
             d3.selectAll(".segmented button").on("click", function () {
                 const dim = this.getAttribute("data-dim");
                 if (dim === currentDim) return;
@@ -1279,7 +1510,7 @@
         loadHourlyCounts24h();
         loadMapAndBeeswarm();
 
-        // Auto-refresh every 3 minutes
+        // Light endpoints every 3 minutes
         setInterval(() => {
             loadOverview();
             loadDailyCounts();
@@ -1287,8 +1518,12 @@
             loadJobsByFunction7d();
             loadWorkMode7d();
             loadHourlyCounts24h();
-            loadMapAndBeeswarm();
         }, 3 * 60 * 1000);
+
+        // Heavy map/beeswarm less frequently
+        setInterval(() => {
+            loadMapAndBeeswarm();
+        }, 10 * 60 * 1000);
     </script>
 </body>
 
