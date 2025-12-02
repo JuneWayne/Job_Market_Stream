@@ -351,6 +351,8 @@
         #beeswarm-svg {
             width: 100%;
             height: 450px;
+            background: linear-gradient(to bottom, rgba(15, 23, 42, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);
+            border-radius: 10px;
         }
 
         .segmented {
@@ -359,6 +361,7 @@
             border-radius: 999px;
             padding: 3px;
             gap: 3px;
+            flex-wrap: wrap;
         }
 
         .segmented button {
@@ -375,6 +378,219 @@
         .segmented button.active {
             background: linear-gradient(135deg, #3b82f6, #a855f7);
             color: white;
+        }
+
+        /* Map legend */
+        #map-legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(15, 23, 42, 0.95);
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            z-index: 1001;
+            font-size: 12px;
+            color: #e5e7eb;
+        }
+
+        #map-legend h4 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            color: #f9fafb;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .legend-circle {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .legend-circle.low {
+            background: #4A90E2;
+        }
+
+        .legend-circle.medium {
+            background: #F39C12;
+        }
+
+        .legend-circle.high {
+            background: #27AE60;
+        }
+
+        .legend-circle.unknown {
+            background: #7f8c8d;
+        }
+
+        /* Custom markers */
+        .custom-marker {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            text-align: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: #fff;
+            line-height: 32px;
+            transition: transform 0.2s;
+            user-select: none;
+        }
+
+        .custom-marker:hover {
+            transform: translateY(-5px) scale(1.1);
+            cursor: pointer;
+        }
+
+        .marker-low {
+            background: #4A90E2;
+        }
+
+        .marker-medium {
+            background: #F39C12;
+        }
+
+        .marker-high {
+            background: #27AE60;
+        }
+
+        .marker-unknown {
+            background: #7f8c8d;
+        }
+
+        .leaflet-div-icon,
+        .leaflet-marker-icon {
+            background: none !important;
+            border: none !important;
+        }
+
+        .cluster-marker-icon .cluster-marker {
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            border-radius: 50%;
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            color: white;
+            background: #27AE60;
+        }
+
+        /* Popup styles */
+        .leaflet-popup-content {
+            max-width: 400px !important;
+            color: #1f2937;
+        }
+
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+        }
+
+        .jobs-scroll {
+            max-height: 350px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .job-card {
+            text-align: left;
+            margin-bottom: 12px;
+            padding: 10px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .job-card:hover {
+            background: #f1f5f9;
+        }
+
+        .job-card.highlight {
+            outline: 2px solid #4A90E2;
+            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.25);
+        }
+
+        .job-card strong a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+
+        .job-card strong a:hover {
+            text-decoration: underline;
+        }
+
+        /* Beeswarm chips */
+        #bs-chips {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+            max-height: 80px;
+            overflow-y: auto;
+        }
+
+        .chip {
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            background: rgba(31, 41, 55, 0.5);
+            color: #e5e7eb;
+            user-select: none;
+            transition: all 0.2s;
+        }
+
+        .chip:hover {
+            background: rgba(59, 130, 246, 0.2);
+        }
+
+        .chip.active {
+            background: linear-gradient(135deg, #3b82f6, #a855f7);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        /* Beeswarm tooltip */
+        .bs-tip {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1300;
+            background: rgba(15, 23, 42, 0.95);
+            color: #f9fafb;
+            font-size: 12px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            max-width: 320px;
+            line-height: 1.4;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .group-label {
+            font-size: 11px;
+            fill: #9ca3af;
+            paint-order: stroke;
+            stroke: rgba(15, 23, 42, 0.8);
+            stroke-width: 4px;
+        }
+
+        .leaflet-marker-icon.dim {
+            filter: grayscale(1) opacity(0.25);
+        }
+
+        /* Map container relative for legend positioning */
+        .map-container {
+            position: relative;
         }
     </style>
 </head>
@@ -498,22 +714,37 @@
     <div class="two-column-grid">
         <div class="card">
             <h3>Job Locations Map</h3>
-            <small>Click clusters to explore opportunities</small>
-            <div id="map"></div>
+            <small>Click markers for job details • Colors show applicant levels</small>
+            <div class="map-container">
+                <div id="map"></div>
+                <div id="map-legend">
+                    <h4>Avg Applicants</h4>
+                    <div class="legend-item"><span class="legend-circle low"></span> Low (1–60)</div>
+                    <div class="legend-item"><span class="legend-circle medium"></span> Medium (61–100)</div>
+                    <div class="legend-item"><span class="legend-circle high"></span> High (101+)</div>
+                    <div class="legend-item"><span class="legend-circle unknown"></span> Unknown</div>
+                </div>
+            </div>
         </div>
 
         <div class="card">
             <h3>Interactive Job Explorer</h3>
-            <small>Powered by jobdata API</small>
+            <small>Click dots to navigate to job on map • Filter by category</small>
             <div class="segmented" id="dimension-selector">
                 <button data-dim="jobFunction" class="active">Function</button>
                 <button data-dim="industry">Industry</button>
+                <button data-dim="companies">Companies</button>
+                <button data-dim="time">Time</button>
                 <button data-dim="skills">Skills</button>
                 <button data-dim="degree">Degree</button>
             </div>
+            <div id="bs-chips"></div>
             <svg id="beeswarm-svg"></svg>
         </div>
     </div>
+
+    <!-- Beeswarm Tooltip -->
+    <div class="bs-tip" id="bs-tip"></div>
 
     <script>
         // API Endpoints
@@ -1265,159 +1496,480 @@
             }
         }
 
-        // ==================== BEESWARM (using jobdata API) ====================
-        async function loadBeeswarm() {
-            try {
-                const response = await fetch(`${JOBS_API}/api/jobs`);
-                const jobs = await response.json();
+        // ==================== BEESWARM & MAP (Enhanced) ====================
+        // Global state for map-beeswarm interaction (mapInstance declared above)
+        let clusters = null;
+        let markersByKey = {};
+        let coordsByKey = {};
+        let beeswarmNodes = [];
 
-                // Process jobs data for beeswarm
-                const nodes = jobs.slice(0, 500).map((job, i) => ({
-                    id: i,
-                    title: job.job_title || job.title || 'Unknown',
-                    company: job.company_name || job.company || 'Unknown',
-                    jobFunction: job.job_function || job.function || 'Other',
-                    industry: job.industry || 'Other',
-                    skills: job.skills ? job.skills.split(',').map(s => s.trim()) : [],
-                    degree: job.degree_requirement || job.degree || 'Not specified'
-                }));
+        // Helper functions
+        const slugify = str => (str || '').toString().toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        const clean = v => (v || 'Unknown').toString().trim();
+        const firstToken = v => clean(v).split(',')[0].split('/')[0].trim() || 'Unknown';
+        const toInt = x => { if (x == null) return null; const m = x.toString().match(/\d+/); return m ? +m[0] : null; };
 
-                drawBeeswarm(nodes);
-
-            } catch (error) {
-                console.error('Error loading beeswarm data:', error);
-            }
+        function degreeLevel(text = '') {
+            const v = text.toLowerCase();
+            if (/(ph\.?d|doctor|doctoral|dphil)/.test(v)) return 'PhD';
+            if (/(master|m\.s\.|ms\b|m\.sc)/.test(v)) return "Master's";
+            if (/(bachelor|b\.s\.|bs\b|ba\b|b\.a\.|bsc)/.test(v)) return "Bachelor's";
+            if (/(associate|a\.s\.|aa\b)/.test(v)) return "Associate's";
+            if (/high\s*school|ged/.test(v)) return 'High School';
+            if (/(enrolled|pursuing|working toward|currently)/.test(v)) return 'Enrolled';
+            return 'Other';
         }
 
-        function drawBeeswarm(nodes) {
-            const svg = d3.select("#beeswarm-svg");
-            svg.selectAll("*").remove();
-
-            const width = svg.node().getBoundingClientRect().width;
-            const height = 450;
-
-            svg.attr("width", width).attr("height", height);
-
-            let currentDimension = 'jobFunction';
-
-            // Group nodes by dimension
-            function groupBy(dimension) {
-                const groups = d3.group(nodes, d => {
-                    if (dimension === 'jobFunction') return d.jobFunction;
-                    if (dimension === 'industry') return d.industry;
-                    if (dimension === 'skills') return d.skills[0] || 'No skills';
-                    if (dimension === 'degree') return d.degree;
-                    return 'Other';
-                });
-                return groups;
+        function bucketTime(str) {
+            const v = (str || '').toLowerCase().trim();
+            if (!v) return 'Unknown';
+            if (v.includes('just') || v.includes('hour') || v.includes('hr')) return 'Last 24h';
+            const m = v.match(/(\d+)\s*(day|week|month|hour|hr)/);
+            if (m) {
+                const n = +m[1], u = m[2];
+                if (u.startsWith('hour') || u.startsWith('hr')) return 'Last 24h';
+                if (u.startsWith('day')) return n <= 1 ? 'Last 24h' : (n <= 7 ? 'Past week' : (n <= 30 ? 'Past month' : 'Older'));
+                if (u.startsWith('week')) return n <= 1 ? 'Past week' : (n <= 4 ? 'Past month' : 'Older');
+                if (u.startsWith('month')) return n <= 1 ? 'Past month' : 'Older';
             }
-
-            // Create force simulation
-            const simulation = d3.forceSimulation(nodes)
-                .force("charge", d3.forceManyBody().strength(-5))
-                .force("collision", d3.forceCollide().radius(5));
-
-            // Draw nodes
-            const circles = svg.selectAll("circle")
-                .data(nodes)
-                .enter().append("circle")
-                .attr("r", 4)
-                .attr("fill", "#3b82f6")
-                .attr("opacity", 0.6)
-                .append("title")
-                .text(d => `${d.title} at ${d.company}`);
-
-            // Update positions based on dimension
-            function updateDimension(dimension) {
-                const groups = groupBy(dimension);
-                const groupNames = Array.from(groups.keys());
-
-                const xScale = d3.scalePoint()
-                    .domain(groupNames)
-                    .range([50, width - 50])
-                    .padding(0.5);
-
-                simulation
-                    .force("x", d3.forceX(d => {
-                        const key = dimension === 'jobFunction' ? d.jobFunction :
-                            dimension === 'industry' ? d.industry :
-                                dimension === 'skills' ? (d.skills[0] || 'No skills') :
-                                    d.degree;
-                        return xScale(key);
-                    }).strength(0.5))
-                    .force("y", d3.forceY(height / 2).strength(0.1))
-                    .alpha(1)
-                    .restart();
-            }
-
-            simulation.on("tick", () => {
-                svg.selectAll("circle")
-                    .attr("cx", d => d.x)
-                    .attr("cy", d => d.y);
-            });
-
-            // Handle dimension selector
-            d3.selectAll("#dimension-selector button").on("click", function () {
-                d3.selectAll("#dimension-selector button").classed("active", false);
-                d3.select(this).classed("active", true);
-
-                const dimension = this.getAttribute("data-dim");
-                updateDimension(dimension);
-            });
-
-            // Initialize with job function
-            updateDimension('jobFunction');
+            if (v.includes('30+')) return 'Older';
+            return 'Unknown';
         }
 
-        // ==================== MAP ====================
-        async function loadMap() {
+        // Company grouping
+        const COMPANY_GROUPS = {
+            'Tech Giants': ['google', 'alphabet', 'meta', 'facebook', 'amazon', 'apple', 'microsoft', 'netflix', 'nvidia', 'adobe', 'salesforce', 'oracle', 'ibm', 'uber', 'airbnb', 'palantir', 'snowflake', 'databricks', 'stripe'],
+            'Consulting': ['mckinsey', 'boston consulting', 'bcg', 'bain', 'deloitte', 'pwc', 'kpmg', 'ey', 'ernst young', 'accenture', 'booz allen'],
+            'Finance': ['jpmorgan', 'goldman sachs', 'morgan stanley', 'bank of america', 'citigroup', 'wells fargo', 'blackrock', 'citadel', 'two sigma', 'capital one', 'american express'],
+            'Healthcare': ['johnson', 'pfizer', 'merck', 'abbvie', 'amgen', 'novartis', 'roche', 'bristol myers', 'eli lilly'],
+            'Retail': ['walmart', 'target', 'costco', 'ebay', 'wayfair', 'best buy', 'home depot']
+        };
+        const COMPANY_PRIORITY = Object.keys(COMPANY_GROUPS);
+
+        function companyGroup(name = '') {
+            const s = name.toLowerCase().replace(/[^\w\s]/g, ' ');
+            for (const cat of COMPANY_PRIORITY) {
+                for (const term of COMPANY_GROUPS[cat]) {
+                    if (s.includes(term)) return cat;
+                }
+            }
+            return 'Other';
+        }
+
+        // Extract skills from job
+        function extractSkills(job) {
+            const text = job.skills_desired || job.skills || '';
+            if (!text) return [];
+            return text.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 1 && s.length < 30).slice(0, 10);
+        }
+
+        // Dimension configuration
+        function buildDimensions(nodes) {
+            function topK(arr, acc, k = 8) {
+                const m = d3.rollup(arr, v => v.length, d => acc(d));
+                return Array.from(m, ([name, count]) => ({ name, count }))
+                    .sort((a, b) => d3.descending(a.count, b.count))
+                    .slice(0, k).map(d => d.name);
+            }
+
+            const topFunctions = topK(nodes, d => d.jobFunction, 8);
+            const topIndustries = topK(nodes, d => d.industry, 8);
+            const topSkills = topK(nodes.flatMap(d => d.skills.map(s => ({ skill: s }))), d => d.skill, 12);
+            const degreeGroups = ["Bachelor's", "Master's", 'PhD', "Associate's", 'Enrolled', 'High School', 'Other'];
+
+            return {
+                jobFunction: { label: 'Job Function', groups: [...topFunctions].sort(d3.ascending).concat('Other'), topSet: new Set(topFunctions) },
+                industry: { label: 'Industry', groups: [...topIndustries].sort(d3.ascending).concat('Other'), topSet: new Set(topIndustries) },
+                companies: { label: 'Companies', groups: [...COMPANY_PRIORITY, 'Other'] },
+                time: { label: 'Time Posted', groups: ['Last 24h', 'Past week', 'Past month', 'Older', 'Unknown'] },
+                degree: { label: 'Degree', groups: degreeGroups },
+                skills: { label: 'Skills', groups: [...topSkills, 'Other'], topSet: new Set(topSkills) }
+            };
+        }
+
+        function groupValue(dim, d, dims) {
+            if (dim === 'jobFunction') return dims.jobFunction.topSet.has(d.jobFunction) ? d.jobFunction : 'Other';
+            if (dim === 'industry') return dims.industry.topSet.has(d.industry) ? d.industry : 'Other';
+            if (dim === 'companies') return d.companyBucket || 'Other';
+            if (dim === 'time') return d.timeBucket;
+            if (dim === 'degree') return dims.degree.groups.includes(d.degreeLevel) ? d.degreeLevel : 'Other';
+            if (dim === 'skills') {
+                const match = d.skills.find(s => dims.skills.topSet.has(s));
+                return match || 'Other';
+            }
+            return 'Other';
+        }
+
+        // Load map and beeswarm together
+        async function loadMapAndBeeswarm() {
             try {
-                const [jobsRes, geoRes] = await Promise.all([
+                // Fetch all data
+                const [jobsRes, summaryRes, geoRes] = await Promise.all([
                     fetch(`${JOBS_API}/api/jobs`),
+                    fetch(`${JOBS_API}/api/job_summaries`).catch(() => ({ ok: false })),
                     fetch(`${JOBS_API}/api/geo_locations`)
                 ]);
 
                 const jobs = await jobsRes.json();
-                const geoData = geoRes.ok ? await geoRes.json() : [];
+                const summary = summaryRes.ok ? await summaryRes.json() : [];
+                const locations = geoRes.ok ? await geoRes.json() : [];
 
-                // Create geo index
-                const geoIndex = new Map();
-                geoData.forEach(g => {
-                    if (g.location && g.latitude && g.longitude) {
-                        geoIndex.set(g.location, { lat: g.latitude, lng: g.longitude });
-                    }
+                // Build location metadata
+                const jobData = {};
+                jobs.forEach(job => {
+                    const k = (job.location || 'Unknown').trim().toLowerCase();
+                    (jobData[k] = jobData[k] || []).push(job);
+                });
+
+                const locationMeta = {};
+                summary.forEach(s => {
+                    const k = (s.location || 'Unknown').trim().toLowerCase();
+                    locationMeta[k] = { jobCount: s.number_of_jobs, avgApplicants: s.average_applicants };
                 });
 
                 // Initialize map
-                if (mapInstance) {
-                    mapInstance.remove();
-                }
-
+                if (mapInstance) mapInstance.remove();
                 mapInstance = L.map('map').setView([39.8283, -98.5795], 4);
-
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© OpenStreetMap contributors'
+                    attribution: '© OpenStreetMap'
                 }).addTo(mapInstance);
 
-                // Group jobs by location
-                const locationGroups = d3.group(jobs, d => d.location || 'Unknown');
-
-                // Add markers
-                locationGroups.forEach((jobsList, location) => {
-                    const geo = geoIndex.get(location);
-                    if (geo) {
-                        const marker = L.marker([geo.lat, geo.lng])
-                            .addTo(mapInstance)
-                            .bindPopup(`
-                                <strong>${location}</strong><br>
-                                ${jobsList.length} jobs available
-                            `);
+                // Create marker cluster group
+                clusters = L.markerClusterGroup({
+                    spiderfyOnMaxZoom: true,
+                    showCoverageOnHover: false,
+                    maxClusterRadius: z => z < 5 ? 200 : z < 8 ? 100 : z < 12 ? 50 : 20,
+                    iconCreateFunction: cluster => {
+                        let sum = 0;
+                        cluster.getAllChildMarkers().forEach(m => sum += (m.options.jobCount || 0));
+                        return L.divIcon({
+                            className: 'cluster-marker-icon',
+                            html: `<div class="cluster-marker">${sum}</div>`,
+                            iconSize: [40, 40],
+                            iconAnchor: [20, 20]
+                        });
                     }
                 });
 
+                // Add markers for each location
+                markersByKey = {};
+                coordsByKey = {};
+                const seen = new Set();
+
+                locations.forEach((loc, i) => {
+                    const raw = loc.location || 'Unknown';
+                    const key = raw.trim().toLowerCase();
+                    if (seen.has(key)) return;
+                    seen.add(key);
+
+                    const { latitude: lat, longitude: lng } = loc;
+                    if (!lat || !lng) return;
+
+                    const meta = locationMeta[key] || { jobCount: 0, avgApplicants: 0 };
+                    const jobsHere = jobData[key] || [];
+                    const count = jobsHere.length;
+                    const avg = meta.avgApplicants || 0;
+
+                    // Determine applicant level
+                    let level = 'unknown';
+                    if (avg > 0 && avg < 61) level = 'low';
+                    else if (avg >= 61 && avg < 101) level = 'medium';
+                    else if (avg >= 101) level = 'high';
+
+                    const icon = L.divIcon({
+                        html: `<div class="custom-marker marker-${level}" title="${raw}: ${count} jobs">${count}</div>`,
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 32]
+                    });
+
+                    const marker = L.marker([lat, lng], { icon, jobCount: count });
+
+                    // Build popup with job cards
+                    const listId = `jobs-list-${slugify(key)}`;
+                    let popupHTML = `
+                        <div class="popup-content">
+                            <b style="font-size:16px;">${raw}</b><br>
+                            <span style="color:#666;">${count} job${count !== 1 ? 's' : ''} • Avg applicants: ${Math.round(avg)}</span>
+                            <hr style="margin:8px 0;">
+                            <div id="${listId}" class="jobs-scroll">`;
+
+                    jobsHere.forEach(job => {
+                        const cardId = slugify(`${job.job_title} ${job.company_name || ''}`);
+                        const jobLink = job.job_link && job.job_link !== 'N/A'
+                            ? (/^https?:\/\//i.test(job.job_link) ? job.job_link : `https://${job.job_link}`)
+                            : null;
+                        const appLink = job.application_link && job.application_link !== 'N/A'
+                            ? (/^https?:\/\//i.test(job.application_link) ? job.application_link : `https://${job.application_link}`)
+                            : null;
+
+                        popupHTML += `
+                            <div id="${cardId}" class="job-card">
+                                <strong style="font-size:14px;">
+                                    ${jobLink ? `<a href="${jobLink}" target="_blank">${job.job_title || 'Untitled'}</a>` : (job.job_title || 'Untitled')}
+                                </strong><br>
+                                <div style="font-size:12px; color:#4b5563; margin-top:4px;">
+                                    <b>Company:</b> ${job.company_name || 'N/A'}<br>
+                                    <b>Posted:</b> ${job.time_posted || 'N/A'}<br>
+                                    <b>Applicants:</b> ${job.num_applicants || 'N/A'}<br>
+                                    <b>Function:</b> ${job['Job Function'] || 'N/A'}<br>
+                                    <b>Industry:</b> ${job['Industries'] || 'N/A'}<br>
+                                    ${job.skills_desired ? `<b>Skills:</b> ${job.skills_desired.slice(0, 100)}${job.skills_desired.length > 100 ? '...' : ''}<br>` : ''}
+                                    ${job.degree_qualifications ? `<b>Degree:</b> ${job.degree_qualifications}<br>` : ''}
+                                    ${job.summary ? `<b>Summary:</b> ${job.summary.slice(0, 150)}${job.summary.length > 150 ? '...' : ''}<br>` : ''}
+                                    ${appLink ? `<b>Apply:</b> <a href="${appLink}" target="_blank">Link</a>` : ''}
+                                </div>
+                            </div>`;
+                    });
+
+                    popupHTML += `</div></div>`;
+                    marker.bindPopup(popupHTML, { maxWidth: 400, maxHeight: 450 });
+                    clusters.addLayer(marker);
+                    markersByKey[key] = marker;
+                    coordsByKey[key] = [lat, lng];
+                });
+
+                mapInstance.addLayer(clusters);
+
+                // Build beeswarm nodes
+                beeswarmNodes = jobs.map((j, i) => {
+                    const locationKey = clean(j.location).toLowerCase();
+                    const applicants = toInt(j.num_applicants);
+                    return {
+                        id: i,
+                        title: clean(j.job_title),
+                        company: clean(j.company_name),
+                        locationRaw: clean(j.location),
+                        locationKey,
+                        locationSlug: slugify(locationKey),
+                        jobSlug: slugify(`${j.job_title} ${j.company_name || ''}`),
+                        coords: coordsByKey[locationKey] || null,
+                        applicants,
+                        appLevel: applicants == null ? 'unknown' : (applicants < 61 ? 'low' : (applicants < 101 ? 'medium' : 'high')),
+                        jobFunction: firstToken(j['Job Function'] || j.job_function),
+                        industry: firstToken(j['Industries'] || j.industry),
+                        timeBucket: bucketTime(j.time_posted),
+                        degreeLevel: degreeLevel(j.degree_qualifications || j.degree_requirement || ''),
+                        skills: extractSkills(j),
+                        companyBucket: companyGroup(j.company_name || ''),
+                        jobLink: j.job_link && j.job_link !== 'N/A' ? j.job_link : null
+                    };
+                });
+
+                // Initialize beeswarm
+                initBeeswarm(beeswarmNodes);
+
             } catch (error) {
-                console.error('Error loading map:', error);
+                console.error('Error loading map/beeswarm:', error);
+                d3.select("#map").html('<div class="error-msg">Failed to load map data</div>');
             }
+        }
+
+        function initBeeswarm(nodes) {
+            const svg = d3.select('#beeswarm-svg');
+            svg.selectAll('*').remove();
+
+            const tip = d3.select('#bs-tip');
+            const container = svg.node().parentNode;
+            const rect = container.getBoundingClientRect();
+
+            const margin = { top: 20, right: 10, bottom: 20, left: 10 };
+            const width = rect.width - margin.left - margin.right;
+            const height = 400;
+
+            svg.attr('width', width + margin.left + margin.right)
+                .attr('height', height + margin.top + margin.bottom);
+
+            const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+            // Build dimensions
+            const dims = buildDimensions(nodes);
+            let currentDim = 'jobFunction';
+            let activeChip = 'All';
+
+            // Create centroids for grouping
+            function makeCentroids(groups) {
+                const n = groups.length;
+                const cols = width >= 600 ? 3 : (width >= 400 ? 2 : 1);
+                const rows = Math.ceil(n / cols);
+                const xPad = 40, yPad = 40;
+                const xs = d3.scalePoint().domain(d3.range(cols)).range([xPad, width - xPad]).padding(0.5);
+                const ys = d3.scalePoint().domain(d3.range(rows)).range([yPad, height - yPad]).padding(0.5);
+                const map = new Map();
+                groups.forEach((name, i) => {
+                    const c = i % cols, r = Math.floor(i / cols);
+                    map.set(name, { x: xs(c), y: ys(r) });
+                });
+                return map;
+            }
+
+            let centroids = makeCentroids(dims[currentDim].groups);
+
+            // Scales
+            const rScale = d3.scaleSqrt()
+                .domain([0, d3.max(nodes, d => d.applicants || 0) || 1])
+                .range([3, 10]);
+
+            const colorByApplicants = d =>
+                d.appLevel === 'low' ? '#4A90E2' :
+                    d.appLevel === 'medium' ? '#F39C12' :
+                        d.appLevel === 'high' ? '#27AE60' : '#7f8c8d';
+
+            // Draw circles
+            const circles = g.append('g').attr('class', 'circles')
+                .selectAll('circle')
+                .data(nodes, d => d.id)
+                .join('circle')
+                .attr('r', d => rScale(d.applicants || 0))
+                .attr('fill', colorByApplicants)
+                .attr('stroke', 'rgba(255,255,255,0.3)')
+                .attr('stroke-width', 0.5)
+                .style('cursor', 'pointer')
+                .on('mouseenter', function (event, d) {
+                    d3.select(this).attr('stroke-width', 2).attr('stroke', '#fff');
+                    tip.style('opacity', 1)
+                        .html(`<b>${d.title}</b><br>${d.company} — ${d.locationRaw}<br><i>${d.jobFunction} • ${d.timeBucket}${d.skills.length ? ' • ' + d.skills.slice(0, 3).join(', ') : ''}</i>`);
+                })
+                .on('mousemove', function (event) {
+                    tip.style('left', (event.clientX + 12) + 'px')
+                        .style('top', (event.clientY + 12) + 'px');
+                })
+                .on('mouseleave', function () {
+                    d3.select(this).attr('stroke-width', 0.5).attr('stroke', 'rgba(255,255,255,0.3)');
+                    tip.style('opacity', 0);
+                })
+                .on('click', (event, d) => {
+                    if (!d.coords) return;
+                    const mk = markersByKey[d.locationKey];
+                    if (!mk) return;
+
+                    clusters.zoomToShowLayer(mk, () => {
+                        mapInstance.once('popupopen', () => {
+                            const listEl = document.getElementById(`jobs-list-${d.locationSlug}`);
+                            const target = listEl && document.getElementById(d.jobSlug);
+                            if (target) {
+                                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                target.classList.add('highlight');
+                                setTimeout(() => target.classList.remove('highlight'), 1500);
+                            }
+                        });
+                        mk.openPopup();
+                    });
+                });
+
+            // Group labels
+            const labelLayer = g.append('g').attr('class', 'group-labels');
+
+            function renderGroupLabels() {
+                const groups = dims[currentDim].groups;
+                labelLayer.selectAll('*').remove();
+                groups.forEach(name => {
+                    const c = centroids.get(name);
+                    if (c) {
+                        labelLayer.append('text')
+                            .attr('class', 'group-label')
+                            .attr('x', c.x)
+                            .attr('y', c.y - 30)
+                            .attr('text-anchor', 'middle')
+                            .text(name);
+                    }
+                });
+            }
+
+            // Force simulation
+            const sim = d3.forceSimulation(nodes)
+                .alpha(1)
+                .velocityDecay(0.3)
+                .force('x', d3.forceX(d => centroids.get(groupValue(currentDim, d, dims))?.x || width / 2).strength(0.12))
+                .force('y', d3.forceY(d => centroids.get(groupValue(currentDim, d, dims))?.y || height / 2).strength(0.12))
+                .force('collide', d3.forceCollide(d => rScale(d.applicants || 0) + 1.5))
+                .on('tick', () => {
+                    circles
+                        .attr('cx', d => d.x = Math.max(8, Math.min(width - 8, d.x || width / 2)))
+                        .attr('cy', d => d.y = Math.max(8, Math.min(height - 8, d.y || height / 2)));
+                });
+
+            renderGroupLabels();
+
+            // Chips for filtering
+            const chipsWrap = d3.select('#bs-chips');
+
+            function renderChips() {
+                const cats = ['All', ...dims[currentDim].groups];
+                chipsWrap.selectAll('*').remove();
+                cats.forEach(val => {
+                    chipsWrap.append('div')
+                        .attr('class', `chip${val === activeChip ? ' active' : ''}`)
+                        .text(val)
+                        .on('click', () => {
+                            activeChip = val;
+                            chipsWrap.selectAll('.chip').classed('active', function () {
+                                return d3.select(this).text() === val;
+                            });
+                            applyFilter();
+                        });
+                });
+            }
+
+            function applyFilter() {
+                circles.transition().duration(200)
+                    .style('opacity', d => (activeChip === 'All' || groupValue(currentDim, d, dims) === activeChip) ? 1 : 0.1);
+
+                // Dim map markers
+                const allowKeys = new Set(
+                    activeChip === 'All'
+                        ? nodes.map(n => n.locationKey)
+                        : nodes.filter(n => groupValue(currentDim, n, dims) === activeChip).map(n => n.locationKey)
+                );
+                Object.entries(markersByKey).forEach(([k, mk]) => {
+                    const el = mk.getElement && mk.getElement();
+                    if (!el) return;
+                    if (allowKeys.has(k)) el.classList.remove('dim');
+                    else el.classList.add('dim');
+                });
+            }
+
+            renderChips();
+            applyFilter();
+
+            // Dimension selector
+            d3.selectAll('#dimension-selector button').on('click', function () {
+                const dim = this.getAttribute('data-dim');
+                if (dim === currentDim) return;
+
+                d3.selectAll('#dimension-selector button').classed('active', false);
+                d3.select(this).classed('active', true);
+
+                currentDim = dim;
+                centroids = makeCentroids(dims[currentDim].groups);
+                renderGroupLabels();
+                activeChip = 'All';
+                renderChips();
+
+                sim.force('x', d3.forceX(d => centroids.get(groupValue(currentDim, d, dims))?.x || width / 2).strength(0.12));
+                sim.force('y', d3.forceY(d => centroids.get(groupValue(currentDim, d, dims))?.y || height / 2).strength(0.12));
+                sim.alpha(0.8).restart();
+                applyFilter();
+            });
+
+            // Handle resize
+            window.addEventListener('resize', () => {
+                const newRect = container.getBoundingClientRect();
+                const newWidth = newRect.width - margin.left - margin.right;
+                svg.attr('width', newWidth + margin.left + margin.right);
+                centroids = makeCentroids(dims[currentDim].groups);
+                renderGroupLabels();
+                sim.force('x', d3.forceX(d => centroids.get(groupValue(currentDim, d, dims))?.x || newWidth / 2).strength(0.12));
+                sim.alpha(0.3).restart();
+            });
+        }
+
+        // Legacy function names for compatibility
+        async function loadBeeswarm() {
+            // Combined with loadMap
+        }
+
+        async function loadMap() {
+            await loadMapAndBeeswarm();
         }
 
         // ==================== INITIALIZE DASHBOARD ====================
