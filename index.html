@@ -948,10 +948,10 @@
 
                 // Create force simulation with bounded forces
                 const simulation = d3.forceSimulation(data.nodes)
-                    .force("link", d3.forceLink(data.edges).id(d => d.id).distance(60).strength(0.5))
-                    .force("charge", d3.forceManyBody().strength(-30).distanceMax(100))
+                    .force("link", d3.forceLink(data.edges).id(d => d.id).distance(40).strength(0.5))
+                    .force("charge", d3.forceManyBody().strength(-20).distanceMax(80))
                     .force("center", d3.forceCenter(width / 2, height / 2).strength(0.1))
-                    .force("collision", d3.forceCollide().radius(d => Math.sqrt(d.size) * 2 + 8).strength(0.8))
+                    .force("collision", d3.forceCollide().radius(d => Math.sqrt(d.size) * 0.6 + 6).strength(0.9))
                     .force("x", d3.forceX(width / 2).strength(0.1))
                     .force("y", d3.forceY(height / 2).strength(0.1))
                     .velocityDecay(0.6)
@@ -965,13 +965,13 @@
                     .attr("class", "link")
                     .attr("stroke-width", d => Math.sqrt(d.weight || 1));
 
-                // Draw nodes
+                // Draw nodes - smaller radius
                 const node = svg.append("g")
                     .selectAll("circle")
                     .data(data.nodes)
                     .enter().append("circle")
                     .attr("class", "node")
-                    .attr("r", d => Math.sqrt(d.size) * 2)
+                    .attr("r", d => Math.sqrt(d.size) * 0.6 + 4)
                     .attr("fill", d => {
                         const scale = d3.scaleSequential(d3.interpolateViridis)
                             .domain([0, d3.max(data.nodes, n => n.size)]);
@@ -998,9 +998,9 @@
 
                 simulation.on("tick", () => {
                     // Strongly clamp nodes to stay within bounds with padding
-                    const padding = 20;
+                    const padding = 15;
                     data.nodes.forEach(d => {
-                        const r = Math.sqrt(d.size) * 2 + 10;
+                        const r = Math.sqrt(d.size) * 0.6 + 8;
                         d.x = Math.max(r + padding, Math.min(width - r - padding, d.x || width / 2));
                         d.y = Math.max(r + padding, Math.min(height - r - padding, d.y || height / 2));
                     });
