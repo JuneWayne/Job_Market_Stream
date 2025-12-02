@@ -53,16 +53,37 @@ def get_conn():
     return duckdb.connect(str(DB_PATH), read_only=True)
 
 
+# Cache for whether scraped_at column exists (checked once, remembered forever)
+_scraped_at_exists = None
+
 def get_time_column(conn) -> str:
     """
-    Check if scraped_at column exists, return the appropriate time column expression.
-    Falls back to time_posted_parsed if scraped_at doesn't exist.
+    Figure out which time column to use for "recent jobs" queries.
+    
+    We have two time columns:
+    - time_posted_parsed: when LinkedIn says the job was posted
+    - scraped_at: when WE actually scraped it (newer data only)
+    
+    If scraped_at exists, we use it (with fallback to time_posted_parsed for old rows).
+    If not, we just use time_posted_parsed.
+    
+    We cache the result so we only check once per server restart.
     """
-    try:
-        conn.execute("SELECT scraped_at FROM jobs LIMIT 1").fetchone()
+    global _scraped_at_exists
+    
+    if _scraped_at_exists is None:
+        # Check using a fresh connection to avoid messing with the main one
+        try:
+            check_conn = duckdb.connect(str(DB_PATH), read_only=True)
+            check_conn.execute("SELECT scraped_at FROM jobs LIMIT 1").fetchone()
+            check_conn.close()
+            _scraped_at_exists = True
+        except:
+            _scraped_at_exists = False
+    
+    if _scraped_at_exists:
         return "COALESCE(scraped_at, time_posted_parsed)"
-    except:
-        return "time_posted_parsed"
+    return "time_posted_parsed"
 
 
 # Helper utilities for formatting and JSON-like output
