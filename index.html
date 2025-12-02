@@ -211,6 +211,13 @@
         /* Skills Network */
         #skills-network-svg {
             background: radial-gradient(circle at center, rgba(59, 130, 246, 0.05), transparent);
+            overflow: hidden;
+            display: block;
+        }
+
+        .skills-network-container {
+            overflow: hidden;
+            position: relative;
         }
 
         .node {
@@ -687,7 +694,7 @@
 
     <div class="two-column-grid">
         <!-- Skills Network Graph -->
-        <div class="card">
+        <div class="card skills-network-container">
             <h3>Skills Network</h3>
             <small>Click nodes to explore skill relationships</small>
             <svg id="skills-network-svg" height="400"></svg>
@@ -929,18 +936,26 @@
                 const width = svg.node().getBoundingClientRect().width;
                 const height = 400;
 
-                svg.attr("width", width).attr("height", height);
+                svg.attr("width", width).attr("height", height)
+                    .attr("viewBox", `0 0 ${width} ${height}`)
+                    .style("overflow", "hidden");
+
+                // Initialize node positions near center to prevent flying
+                data.nodes.forEach((d, i) => {
+                    d.x = width / 2 + (Math.random() - 0.5) * 100;
+                    d.y = height / 2 + (Math.random() - 0.5) * 100;
+                });
 
                 // Create force simulation with bounded forces
                 const simulation = d3.forceSimulation(data.nodes)
-                    .force("link", d3.forceLink(data.edges).id(d => d.id).distance(80).strength(0.3))
-                    .force("charge", d3.forceManyBody().strength(-50).distanceMax(150))
-                    .force("center", d3.forceCenter(width / 2, height / 2))
-                    .force("collision", d3.forceCollide().radius(d => Math.sqrt(d.size) * 2 + 5))
-                    .force("x", d3.forceX(width / 2).strength(0.05))
-                    .force("y", d3.forceY(height / 2).strength(0.05))
-                    .velocityDecay(0.4)
-                    .alphaDecay(0.02);
+                    .force("link", d3.forceLink(data.edges).id(d => d.id).distance(60).strength(0.5))
+                    .force("charge", d3.forceManyBody().strength(-30).distanceMax(100))
+                    .force("center", d3.forceCenter(width / 2, height / 2).strength(0.1))
+                    .force("collision", d3.forceCollide().radius(d => Math.sqrt(d.size) * 2 + 8).strength(0.8))
+                    .force("x", d3.forceX(width / 2).strength(0.1))
+                    .force("y", d3.forceY(height / 2).strength(0.1))
+                    .velocityDecay(0.6)
+                    .alphaDecay(0.05);
 
                 // Draw links (if any)
                 const link = svg.append("g")
@@ -982,11 +997,12 @@
                     .text(d => `${d.label}: ${d.size} mentions`);
 
                 simulation.on("tick", () => {
-                    // Clamp nodes to stay within bounds
+                    // Strongly clamp nodes to stay within bounds with padding
+                    const padding = 20;
                     data.nodes.forEach(d => {
-                        const r = Math.sqrt(d.size) * 2 + 5;
-                        d.x = Math.max(r, Math.min(width - r, d.x));
-                        d.y = Math.max(r, Math.min(height - r, d.y));
+                        const r = Math.sqrt(d.size) * 2 + 10;
+                        d.x = Math.max(r + padding, Math.min(width - r - padding, d.x || width / 2));
+                        d.y = Math.max(r + padding, Math.min(height - r - padding, d.y || height / 2));
                     });
 
                     link
