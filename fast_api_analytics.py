@@ -149,7 +149,7 @@ def jobs_by_function(days: Optional[int] = None):
             """
         ).fetchdf()
     else:
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         df = conn.execute(
             """
             SELECT
@@ -188,7 +188,7 @@ def work_mode(days: Optional[int] = None):
             """
         ).fetchdf()
     else:
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         df = conn.execute(
             """
             SELECT
@@ -228,7 +228,7 @@ def top_skills(limit: int = 30, days: Optional[int] = None):
     params: List[Any] = []
 
     if days is not None:
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         base_query += " AND time_posted_parsed >= ? "
         params.append(cutoff)
 
@@ -257,7 +257,7 @@ def top_skills(limit: int = 30, days: Optional[int] = None):
 def daily_counts(days: int = 180):
     """Number of jobs by posting day, based on time_posted_parsed."""
     conn = get_conn()
-    cutoff = datetime.now() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     df = conn.execute(
         """
         SELECT
@@ -283,7 +283,7 @@ def daily_counts(days: int = 180):
 def hourly_counts(hours: int = 24):
     """Jobs per hour for the last `hours` hours."""
     conn = get_conn()
-    cutoff = datetime.now() - timedelta(hours=hours)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     df = conn.execute(
         """
         SELECT
@@ -308,7 +308,7 @@ def hourly_counts(hours: int = 24):
 def _raw_beeswarm_query(limit: int, hours: int):
     """Shared query used by /api/beeswarm_jobs and /api/map_jobs."""
     conn = get_conn()
-    cutoff = datetime.now() - timedelta(hours=hours)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
 
     try:
         df = conn.execute(
@@ -403,7 +403,7 @@ def map_jobs_alias(
 def competition_heatmap(days: int = 30):
     """Average applicant count by day of week and hour."""
     conn = get_conn()
-    cutoff = datetime.now() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     df = conn.execute(
         """
         SELECT 
@@ -430,7 +430,7 @@ def competition_heatmap(days: int = 30):
 def skills_network(limit: int = 50, days: int = 30):
     """Skill co-occurrence data for network visualization (nodes only for now)."""
     conn = get_conn()
-    cutoff = datetime.now() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
     top_skills_df = conn.execute(
         """
@@ -472,7 +472,7 @@ def skills_network(limit: int = 50, days: int = 30):
 def company_velocity(days: int = 30, top_n: int = 20):
     """Top companies' hiring rate changes over time."""
     conn = get_conn()
-    cutoff = datetime.now() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     df = conn.execute(
         """
         WITH company_daily AS (
@@ -566,8 +566,8 @@ def job_lifecycle():
 def trending_skills(days_back: int = 30, top_n: int = 20):
     """Skills with biggest growth/decline in demand."""
     conn = get_conn()
-    mid_date = datetime.now() - timedelta(days=days_back // 2)
-    start_date = datetime.now() - timedelta(days=days_back)
+    mid_date = datetime.now(timezone.utc) - timedelta(days=days_back // 2)
+    start_date = datetime.now(timezone.utc) - timedelta(days=days_back)
 
     df = conn.execute(
         """
@@ -627,7 +627,7 @@ def remote_evolution(days: int = 180):
     Returns: [{ week, work_mode, percentage }, ...]
     """
     conn = get_conn()
-    cutoff = datetime.now() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     df = conn.execute(
         """
         WITH weekly AS (
@@ -718,10 +718,14 @@ def culture_keywords(limit: int = 20):
 # -------------------------------------------------------------
 @app.get("/api/pulse_metrics")
 def pulse_metrics():
-    """Real-time metrics for the last hour vs previous periods."""
+    """
+    Real-time metrics based on WHEN JOBS WERE SCRAPED (scraped_at),
+    not when they were originally posted on LinkedIn (time_posted_parsed).
+    This shows actual recent scraping activity.
+    """
     conn = get_conn()
 
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     last_hour = now - timedelta(hours=1)
     last_24h = now - timedelta(hours=24)
     last_week = now - timedelta(days=7)
@@ -729,19 +733,20 @@ def pulse_metrics():
     row = conn.execute(
         """
         SELECT 
-            COUNT(CASE WHEN time_posted_parsed >= ? THEN 1 END) AS last_hour_jobs,
-            COUNT(CASE WHEN time_posted_parsed >= ? THEN 1 END) AS last_24h_jobs,
-            COUNT(CASE WHEN time_posted_parsed >= ? THEN 1 END) / (7.0 * 24) AS weekly_avg_per_hour,
+            -- Use scraped_at to count recently SCRAPED jobs (with fallback to time_posted_parsed for old data)
+            COUNT(CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN 1 END) AS last_hour_jobs,
+            COUNT(CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN 1 END) AS last_24h_jobs,
+            COUNT(CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN 1 END) / (7.0 * 24) AS weekly_avg_per_hour,
             MODE() WITHIN GROUP (
-                ORDER BY CASE WHEN time_posted_parsed >= ? THEN location END
+                ORDER BY CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN location END
             ) AS hottest_location,
             MODE() WITHIN GROUP (
-                ORDER BY CASE WHEN time_posted_parsed >= ? THEN job_function END
+                ORDER BY CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN job_function END
             ) AS hottest_function,
-            MAX(CASE WHEN time_posted_parsed >= ? THEN num_applicants_int END) AS max_applicants_recent,
-            AVG(CASE WHEN time_posted_parsed >= ? THEN num_applicants_int END) AS avg_applicants_recent
+            MAX(CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN num_applicants_int END) AS max_applicants_recent,
+            AVG(CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN num_applicants_int END) AS avg_applicants_recent
         FROM jobs
-        WHERE time_posted_parsed IS NOT NULL;
+        WHERE COALESCE(scraped_at, time_posted_parsed) IS NOT NULL;
         """,
         [
             last_hour,

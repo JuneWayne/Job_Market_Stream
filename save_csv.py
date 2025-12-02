@@ -16,6 +16,7 @@ FIELDNAMES = [
     "application_link",
     "num_applicants_int",
     "work_mode",
+    "scraped_at",
 ]
 
 def append_parsed_job(parsed):

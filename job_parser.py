@@ -405,4 +405,8 @@ def parse_job_postings(df_jobs):
     job["job_function"] = extract_job_function(description, title)
     posting_dt = parse_time_posted(time_posted)
     job["time_posted_parsed"] = posting_dt.isoformat() if posting_dt else None
+    
+    # Record when this job was actually scraped/processed
+    job["scraped_at"] = datetime.now(ZoneInfo("America/New_York")).isoformat()
+    
     return job

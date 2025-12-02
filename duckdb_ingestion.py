@@ -39,7 +39,7 @@ def main():
             skills,
             degree_requirement,
 
-            -- Safely parse various ISO-like timestamp formats
+            -- Safely parse various ISO-like timestamp formats for time_posted_parsed
             CASE
                 WHEN time_posted_parsed IS NULL OR time_posted_parsed = '' THEN NULL
                 ELSE COALESCE(
@@ -55,7 +55,18 @@ def main():
             -- Safely parse applicants as INTEGER
             TRY_CAST(NULLIF(num_applicants_int, '') AS INTEGER) AS num_applicants_int,
 
-            work_mode
+            work_mode,
+
+            -- Parse scraped_at timestamp (when the job was actually collected)
+            CASE
+                WHEN scraped_at IS NULL OR scraped_at = '' THEN NULL
+                ELSE COALESCE(
+                    TRY_STRPTIME(scraped_at, '%Y-%m-%dT%H:%M:%S.%f%z'),
+                    TRY_STRPTIME(scraped_at, '%Y-%m-%dT%H:%M:%S%z'),
+                    TRY_STRPTIME(scraped_at, '%Y-%m-%dT%H:%M:%S'),
+                    TRY_STRPTIME(scraped_at, '%Y-%m-%d %H:%M:%S')
+                )
+            END AS scraped_at
         FROM raw;
         """,
         [str(DATA_CSV)],
@@ -71,10 +82,10 @@ def main():
                 ROW_NUMBER() OVER (
                     PARTITION BY job_id
                     ORDER BY
-                        -- prefer rows with non-null time_posted_parsed
-                        (time_posted_parsed IS NULL) ASC,
-                        -- then the most recent posting date
-                        time_posted_parsed DESC
+                        -- prefer rows with non-null scraped_at (most recent scrape)
+                        (scraped_at IS NULL) ASC,
+                        -- then the most recent scrape time
+                        scraped_at DESC
                 ) AS rn
             FROM jobs
         )
@@ -90,7 +101,8 @@ def main():
             time_posted_parsed,
             application_link,
             num_applicants_int,
-            work_mode
+            work_mode,
+            scraped_at
         FROM ranked
         WHERE rn = 1;
         """
