@@ -145,7 +145,8 @@
 
         #map {
             width: 100%;
-            height: 360px;
+            height: 430px;
+            /* bigger map */
             border-radius: 0.75rem;
             overflow: hidden;
         }
@@ -240,7 +241,8 @@
         /* Beeswarm */
         #beeswarm-svg {
             width: 100%;
-            height: 360px;
+            height: 430px;
+            /* bigger beeswarm */
         }
 
         #bs-header {
@@ -425,6 +427,8 @@
 
     <script>
         const API_BASE = "https://job-market-stream.onrender.com";
+
+        let mapInstance = null; // keep track of Leaflet map so we can re-init safely
 
         // ---------- Helpers ----------
         function renderError(containerId, msg) {
@@ -695,6 +699,7 @@
         function drawHourlyBubbleChart(containerId, data) {
             const container = d3.select(`#${containerId}`);
             container.selectAll("svg").remove();
+            container.selectAll(".bs-tip").remove();
 
             if (!data || data.length === 0) {
                 container.append("div")
@@ -857,7 +862,6 @@
                 return "Other";
             };
 
-            // Skills: simple split on commas
             function extractSkills(s) {
                 if (!s) return [];
                 return s.split(",")
@@ -865,7 +869,6 @@
                     .filter(Boolean);
             }
 
-            // Company buckets (very coarse)
             function companyBucket(name) {
                 const s = (name || "").toLowerCase();
                 if (!s) return "Other";
@@ -884,18 +887,9 @@
             const nodes = jobs.map((j, i) => {
                 const loc = clean(j.location);
                 const applicants = toInt(j.num_applicants);
-
-                // use the human-readable text for bucketing ("1 hour ago", etc.)
-                const timeBucket = bucketTime(j.time_posted);
-
+                const timeBucket = bucketTime(j.time_posted_parsed);
                 const deg = degreeLevel(j.degree_qualifications);
-
-                // handle both old/new backend field names
-                const rawJobFunction = j.job_function ?? j["Job Function"];
-                const rawIndustry = j.industry ?? j["Industries"];
-                const rawSkills = j.skills ?? j.skills_desired;
-
-                const skillsArr = extractSkills(rawSkills);
+                const skillsArr = extractSkills(j.skills);
 
                 return {
                     id: j.job_id ?? i,
@@ -904,8 +898,8 @@
                     location: loc,
                     lat: j.latitude,
                     lng: j.longitude,
-                    jobFunction: clean(rawJobFunction),
-                    industry: clean(rawIndustry),
+                    jobFunction: clean(j.job_function),
+                    industry: clean(j.industry),
                     timeBucket,
                     degreeLevel: deg,
                     workMode: clean(j.work_mode),
@@ -917,8 +911,6 @@
             });
 
             // ---- Map aggregation ----
-
-            // use all jobs for beeswarm, but ONLY geo-capable ones for map
             const geoNodes = nodes.filter(d =>
                 d.lat != null &&
                 d.lng != null &&
@@ -926,9 +918,18 @@
                 !Number.isNaN(d.lng)
             );
 
-            if (!geoNodes.length) {
-                console.warn("No geocoded jobs available for the map in this time window.");
-            } else {
+            // Safely (re)create the map
+            if (mapInstance) {
+                mapInstance.remove();
+                mapInstance = null;
+            }
+
+            mapInstance = L.map("map").setView([38.0, -95.0], 4); // center roughly on US
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                attribution: "© OpenStreetMap contributors"
+            }).addTo(mapInstance);
+
+            if (geoNodes.length > 0) {
                 const byLocation = d3.group(
                     geoNodes,
                     d => `${d.location}|${d.lat}|${d.lng}`
@@ -956,12 +957,6 @@
                         level
                     };
                 });
-
-                // ---- Leaflet map ----
-                const map = L.map("map").setView([38.0, -95.0], 4); // center on US roughly
-                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                    attribution: "© OpenStreetMap contributors"
-                }).addTo(map);
 
                 const clusters = L.markerClusterGroup({
                     spiderfyOnMaxZoom: true,
@@ -1008,16 +1003,17 @@
                     clusters.addLayer(marker);
                 });
 
-                map.addLayer(clusters);
+                mapInstance.addLayer(clusters);
+            } else {
+                console.warn("No geocoded jobs available for the map in this time window.");
             }
-
 
             // ---- Beeswarm ----
             const svg = d3.select("#beeswarm-svg");
             svg.selectAll("*").remove();
 
             const width = svg.node().clientWidth || 400;
-            const height = svg.node().clientHeight || 360;
+            const height = svg.node().clientHeight || 430;
             const margin = { top: 10, right: 10, bottom: 10, left: 10 };
             const innerWidth = width - margin.left - margin.right;
             const innerHeight = height - margin.top - margin.bottom;
