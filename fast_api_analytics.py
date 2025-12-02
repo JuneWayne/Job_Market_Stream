@@ -134,7 +134,7 @@ def overview():
 def jobs_by_function(days: Optional[int] = None):
     """
     Jobs grouped by job_function.
-    If days is provided, filter to last `days` based on time_posted_parsed.
+    If days is provided, filter to jobs scraped in last `days` days.
     """
     conn = get_conn()
     if days is None:
@@ -156,7 +156,7 @@ def jobs_by_function(days: Optional[int] = None):
                 COALESCE(job_function, 'Unknown') AS job_function,
                 COUNT(*) AS count
             FROM jobs
-            WHERE time_posted_parsed >= ?
+            WHERE COALESCE(scraped_at, time_posted_parsed) >= ?
             GROUP BY 1
             ORDER BY count DESC;
             """,
@@ -173,7 +173,7 @@ def jobs_by_function(days: Optional[int] = None):
 def work_mode(days: Optional[int] = None):
     """
     Jobs grouped by work_mode (Remote / Hybrid / On-site / Unknown).
-    If days is provided, filter by time_posted_parsed.
+    If days is provided, filter to jobs scraped in last `days` days.
     """
     conn = get_conn()
     if days is None:
@@ -195,7 +195,7 @@ def work_mode(days: Optional[int] = None):
                 COALESCE(work_mode, 'Unknown') AS work_mode,
                 COUNT(*) AS count
             FROM jobs
-            WHERE time_posted_parsed >= ?
+            WHERE COALESCE(scraped_at, time_posted_parsed) >= ?
             GROUP BY 1
             ORDER BY count DESC;
             """,
@@ -211,7 +211,7 @@ def work_mode(days: Optional[int] = None):
 @app.get("/api/top_skills")
 def top_skills(limit: int = 30, days: Optional[int] = None):
     """
-    Returns top N skills across all jobs (or recent window if days is given).
+    Returns top N skills across all jobs (or recently scraped if days is given).
     Assumes a column `skills` with comma-separated values.
     """
     conn = get_conn()
@@ -229,7 +229,7 @@ def top_skills(limit: int = 30, days: Optional[int] = None):
 
     if days is not None:
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-        base_query += " AND time_posted_parsed >= ? "
+        base_query += " AND COALESCE(scraped_at, time_posted_parsed) >= ? "
         params.append(cutoff)
 
     base_query += """
@@ -277,21 +277,21 @@ def daily_counts(days: int = 180):
 
 
 # -------------------------------------------------------------
-# 6) Hourly counts – based on time_posted_parsed
+# 6) Hourly counts – based on scraped_at (when jobs were collected)
 # -------------------------------------------------------------
 @app.get("/api/hourly_counts")
 def hourly_counts(hours: int = 24):
-    """Jobs per hour for the last `hours` hours."""
+    """Jobs scraped per hour for the last `hours` hours."""
     conn = get_conn()
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     df = conn.execute(
         """
         SELECT
-            date_trunc('hour', time_posted_parsed) AS hour,
+            date_trunc('hour', COALESCE(scraped_at, time_posted_parsed)) AS hour,
             COUNT(*) AS job_count
         FROM jobs
-        WHERE time_posted_parsed IS NOT NULL
-          AND time_posted_parsed >= ?
+        WHERE COALESCE(scraped_at, time_posted_parsed) IS NOT NULL
+          AND COALESCE(scraped_at, time_posted_parsed) >= ?
         GROUP BY 1
         ORDER BY hour;
         """,
@@ -428,7 +428,7 @@ def competition_heatmap(days: int = 30):
 # -------------------------------------------------------------
 @app.get("/api/skills_network")
 def skills_network(limit: int = 50, days: int = 30):
-    """Skill co-occurrence data for network visualization (nodes only for now)."""
+    """Skill co-occurrence data for network visualization (nodes only for now). Uses scraped_at."""
     conn = get_conn()
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
@@ -440,7 +440,7 @@ def skills_network(limit: int = 50, days: int = 30):
                  UNNEST(string_split(skills, ',')) AS t(skill)
             WHERE skills IS NOT NULL
               AND skills <> ''
-              AND time_posted_parsed >= ?
+              AND COALESCE(scraped_at, time_posted_parsed) >= ?
         )
         SELECT
             skill,
@@ -564,7 +564,7 @@ def job_lifecycle():
 # -------------------------------------------------------------
 @app.get("/api/trending_skills")
 def trending_skills(days_back: int = 30, top_n: int = 20):
-    """Skills with biggest growth/decline in demand."""
+    """Skills with biggest growth/decline in demand. Uses scraped_at for time comparison."""
     conn = get_conn()
     mid_date = datetime.now(timezone.utc) - timedelta(days=days_back // 2)
     start_date = datetime.now(timezone.utc) - timedelta(days=days_back)
@@ -574,13 +574,13 @@ def trending_skills(days_back: int = 30, top_n: int = 20):
         WITH skill_periods AS (
             SELECT
                 TRIM(skill) AS skill,
-                CASE WHEN time_posted_parsed >= ? THEN 'recent' ELSE 'older' END AS period,
+                CASE WHEN COALESCE(scraped_at, time_posted_parsed) >= ? THEN 'recent' ELSE 'older' END AS period,
                 COUNT(*) AS mentions
             FROM jobs,
                  UNNEST(string_split(skills, ',')) AS t(skill)
             WHERE skills IS NOT NULL
               AND skills <> ''
-              AND time_posted_parsed >= ?
+              AND COALESCE(scraped_at, time_posted_parsed) >= ?
               AND TRIM(skill) <> ''
             GROUP BY TRIM(skill), period
         ),
