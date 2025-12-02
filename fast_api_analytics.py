@@ -1,5 +1,3 @@
-# fast_api_analytics.py
-
 from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, Query, Request
@@ -12,26 +10,20 @@ import traceback
 
 DB_PATH = Path("data/jobs.duckdb")
 
-# -------------------------------------------------------------
-# Create FastAPI app
-# -------------------------------------------------------------
+# FastAPI app for serving job market analytics
 app = FastAPI(title="Job Market Analytics API")
 
-# -------------------------------------------------------------
-# CORS
-# -------------------------------------------------------------
+# CORS setup for browser-based dashboards and static frontends
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],       # allow GitHub Pages + any other origin
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
 
-# -------------------------------------------------------------
-# Global exception handler to ensure CORS headers on errors
-# -------------------------------------------------------------
+# Global error handling with JSON payload and CORS headers
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Ensure CORS headers are sent even when errors occur."""
@@ -47,9 +39,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         },
     )
 
-# -------------------------------------------------------------
-# Health check endpoint for debugging
-# -------------------------------------------------------------
+# Lightweight health check to confirm API and CORS wiring
 @app.get("/health")
 async def health_check():
     """Simple health check endpoint."""
@@ -75,9 +65,7 @@ def get_time_column(conn) -> str:
         return "time_posted_parsed"
 
 
-# -------------------------------------------------------------
-# Helpers
-# -------------------------------------------------------------
+# Helper utilities for formatting and JSON-like output
 def friendly_age(dt: Optional[datetime]) -> Optional[str]:
     """Turn a datetime into '2 days ago' style text."""
     if dt is None or not isinstance(dt, datetime):
@@ -111,9 +99,7 @@ def df_to_records(df) -> List[Dict[str, Any]]:
     return df.to_dict(orient="records")
 
 
-# -------------------------------------------------------------
-# 1) Overview
-# -------------------------------------------------------------
+# Aggregate stats for basic overview cards
 @app.get("/api/overview")
 def overview():
     conn = get_conn()
@@ -139,9 +125,7 @@ def overview():
     }
 
 
-# -------------------------------------------------------------
-# 2) Jobs by function
-# -------------------------------------------------------------
+# Job counts grouped by function, optionally filtered by recent days
 @app.get("/api/jobs_by_function")
 def jobs_by_function(days: Optional[int] = None):
     """
@@ -180,9 +164,7 @@ def jobs_by_function(days: Optional[int] = None):
     return df_to_records(df)
 
 
-# -------------------------------------------------------------
-# 3) Work mode distribution
-# -------------------------------------------------------------
+# Work mode split (remote, hybrid, on-site, unknown) with optional time filter
 @app.get("/api/work_mode")
 def work_mode(days: Optional[int] = None):
     """
@@ -221,9 +203,7 @@ def work_mode(days: Optional[int] = None):
     return df_to_records(df)
 
 
-# -------------------------------------------------------------
-# 4) Top skills (comma-split)
-# -------------------------------------------------------------
+# Top skills extracted from comma-separated skill lists
 @app.get("/api/top_skills")
 def top_skills(limit: int = 30, days: Optional[int] = None):
     """
@@ -267,9 +247,7 @@ def top_skills(limit: int = 30, days: Optional[int] = None):
     return df_to_records(df)
 
 
-# -------------------------------------------------------------
-# 5) Daily counts (for 180-day line chart)
-# -------------------------------------------------------------
+# Daily job counts for time-series charts
 @app.get("/api/daily_counts")
 def daily_counts(days: int = 180):
     """Number of jobs by posting day, based on time_posted_parsed."""
@@ -293,9 +271,7 @@ def daily_counts(days: int = 180):
     return df_to_records(df)
 
 
-# -------------------------------------------------------------
-# 6) Hourly counts – based on scraped_at (when jobs were collected)
-# -------------------------------------------------------------
+# Hourly job counts based on scrape time or posting time
 @app.get("/api/hourly_counts")
 def hourly_counts(hours: int = 24):
     """Jobs scraped per hour for the last `hours` hours."""
@@ -320,9 +296,7 @@ def hourly_counts(hours: int = 24):
     return df_to_records(df)
 
 
-# -------------------------------------------------------------
-# 7) Map + Beeswarm jobs (last N hours, default 24)
-# -------------------------------------------------------------
+# Shared job list for beeswarm chart and map visualization
 def _raw_beeswarm_query(limit: int, hours: int):
     """Shared query used by /api/beeswarm_jobs and /api/map_jobs."""
     conn = get_conn()
@@ -396,6 +370,7 @@ def _raw_beeswarm_query(limit: int, hours: int):
     return df_to_records(df)
 
 
+# Job feed backing beeswarm chart
 @app.get("/api/beeswarm_jobs")
 def beeswarm_jobs(
     limit: int = Query(2000, ge=1, le=5000),
@@ -405,6 +380,7 @@ def beeswarm_jobs(
     return _raw_beeswarm_query(limit=limit, hours=hours)
 
 
+# Job feed alias for map-specific calls
 @app.get("/api/map_jobs")
 def map_jobs_alias(
     limit: int = Query(2000, ge=1, le=5000),
@@ -414,9 +390,7 @@ def map_jobs_alias(
     return _raw_beeswarm_query(limit=limit, hours=hours)
 
 
-# -------------------------------------------------------------
-# 8) Competition Heatmap
-# -------------------------------------------------------------
+# Heatmap data for competition by day-of-week and hour
 @app.get("/api/competition_heatmap")
 def competition_heatmap(days: int = 30):
     """Average applicant count by day of week and hour."""
@@ -441,9 +415,7 @@ def competition_heatmap(days: int = 30):
     return df_to_records(df)
 
 
-# -------------------------------------------------------------
-# 9) Skills Network
-# -------------------------------------------------------------
+# Skills network nodes for graph-based visualizations
 @app.get("/api/skills_network")
 def skills_network(limit: int = 50, days: int = 30):
     """Skill co-occurrence data for network visualization (nodes only for now). Uses scraped_at."""
@@ -480,13 +452,11 @@ def skills_network(limit: int = 50, days: int = 30):
         for _, row in top_skills_df.iterrows()
     ]
 
-    # Edges omitted for now
+    # Skills network edges left empty for now
     return {"nodes": nodes, "edges": []}
 
 
-# -------------------------------------------------------------
-# 10) Company Hiring Velocity
-# -------------------------------------------------------------
+# Company-level posting velocity for trend views
 @app.get("/api/company_velocity")
 def company_velocity(days: int = 30, top_n: int = 20):
     """Top companies' hiring rate changes over time."""
@@ -532,9 +502,7 @@ def company_velocity(days: int = 30, top_n: int = 20):
     return df_to_records(df)
 
 
-# -------------------------------------------------------------
-# 11) Job Lifecycle
-# -------------------------------------------------------------
+# Lifecycle buckets for job age and applicant activity
 @app.get("/api/job_lifecycle")
 def job_lifecycle():
     """Job posting lifecycle stages."""
@@ -578,9 +546,7 @@ def job_lifecycle():
     return df_to_records(df)
 
 
-# -------------------------------------------------------------
-# 12) Trending Skills
-# -------------------------------------------------------------
+# Skill demand trends across a recent vs older window
 @app.get("/api/trending_skills")
 def trending_skills(days_back: int = 30, top_n: int = 20):
     """Skills with biggest growth/decline in demand. Uses scraped_at for time comparison."""
@@ -637,9 +603,7 @@ def trending_skills(days_back: int = 30, top_n: int = 20):
     return df_to_records(df)
 
 
-# -------------------------------------------------------------
-# 13) Remote Evolution (needed by frontend)
-# -------------------------------------------------------------
+# Weekly work mode percentages over time
 @app.get("/api/remote_evolution")
 def remote_evolution(days: int = 180):
     """
@@ -683,9 +647,7 @@ def remote_evolution(days: int = 180):
     return df_to_records(df)
 
 
-# -------------------------------------------------------------
-# 14) Culture Keywords (needed by frontend)
-# -------------------------------------------------------------
+# Culture-related keyword frequencies pulled from job descriptions
 @app.get("/api/culture_keywords")
 def culture_keywords(limit: int = 20):
     """
@@ -693,7 +655,6 @@ def culture_keywords(limit: int = 20):
     Returns [{ keyword, count, percentage }, ...]
     """
     conn = get_conn()
-    # You can tune this list however you like
     keywords = [
         "inclusive", "diverse", "collaborative", "remote",
         "flexible", "supportive", "growth", "learning",
@@ -703,7 +664,6 @@ def culture_keywords(limit: int = 20):
         "customer obsessed", "impact", "hybrid"
     ]
 
-    # Pull just job_description into memory and do a simple text scan
     df = conn.execute(
         "SELECT job_description FROM jobs WHERE job_description IS NOT NULL;"
     ).fetchdf()
@@ -717,7 +677,7 @@ def culture_keywords(limit: int = 20):
 
     results: List[Dict[str, Any]] = []
     for kw in keywords:
-        # case-insensitive contains
+        # Case-insensitive keyword match in job descriptions
         count = int(desc_series.str.contains(kw, case=False, regex=False).sum())
         if count > 0:
             results.append(
@@ -728,14 +688,11 @@ def culture_keywords(limit: int = 20):
                 }
             )
 
-    # sort and trim
     results.sort(key=lambda x: x["count"], reverse=True)
     return results[:limit]
 
 
-# -------------------------------------------------------------
-# 15) Pulse Metrics
-# -------------------------------------------------------------
+# Snapshot metrics for recent scraping activity
 @app.get("/api/pulse_metrics")
 def pulse_metrics():
     """
@@ -810,9 +767,7 @@ def pulse_metrics():
     }
 
 
-# -------------------------------------------------------------
-# Root endpoint
-# -------------------------------------------------------------
+# Root help endpoint listing available analytics routes
 @app.get("/")
 async def root():
     return {

@@ -1,9 +1,10 @@
-# duckdb_ingestion.py
 import duckdb
 from pathlib import Path
 import logging
 import csv
 from geo_encode import update_geo_locations
+
+# Paths to the main CSV we ingest and the DuckDB file we maintain
 DATA_CSV = Path("data/parsed_jobs.csv")
 DB_PATH = Path("data/jobs.duckdb")
 
@@ -14,8 +15,8 @@ logging.basicConfig(
 logger = logging.getLogger("duckdb_ingestion")
 
 
-def csv_has_column(csv_path: Path, column_name: str) -> bool:
-    """Check if a CSV file has a specific column in its header."""
+def csv_has_column(csv_path, column_name):
+    # Quick helper: check if a given column name exists in the CSV header
     with open(csv_path, 'r', encoding='utf-8') as f:
         reader = csv.reader(f)
         header = next(reader, [])
@@ -23,21 +24,22 @@ def csv_has_column(csv_path: Path, column_name: str) -> bool:
 
 
 def main():
+    # Make sure the CSV we want to ingest is actually there
     if not DATA_CSV.exists():
         raise FileNotFoundError(
             f"{DATA_CSV} does not exist. Run mongo_populate / consumer first."
         )
 
+    # Open (or create) the DuckDB file
     conn = duckdb.connect(str(DB_PATH))
     
-    # Check if CSV has scraped_at column
+    # Check if the CSV includes a scraped_at column so we know how to handle it
     has_scraped_at = csv_has_column(DATA_CSV, 'scraped_at')
     logger.info(f"CSV has scraped_at column: {has_scraped_at}")
 
-    # Build scraped_at parsing clause conditionally
+    # Build the scraped_at expression depending on whether that column exists
     if has_scraped_at:
         scraped_at_clause = """
-            -- Parse scraped_at timestamp (when the job was actually collected)
             CASE
                 WHEN scraped_at IS NULL OR scraped_at = '' THEN NULL
                 ELSE COALESCE(
@@ -50,11 +52,10 @@ def main():
         """
     else:
         scraped_at_clause = """
-            -- No scraped_at in CSV, use NULL
             NULL AS scraped_at
         """
 
-    # 1) Load CSV into a raw jobs table
+    # Step 1: read the CSV into DuckDB and normalize basic fields / timestamps
     conn.execute(
         f"""
         CREATE OR REPLACE TABLE jobs AS
@@ -72,7 +73,7 @@ def main():
             skills,
             degree_requirement,
 
-            -- Safely parse various ISO-like timestamp formats for time_posted_parsed
+            -- Try a few common formats to turn time_posted_parsed into a real timestamp
             CASE
                 WHEN time_posted_parsed IS NULL OR time_posted_parsed = '' THEN NULL
                 ELSE COALESCE(
@@ -85,7 +86,7 @@ def main():
 
             application_link,
 
-            -- Safely parse applicants as INTEGER
+            -- Turn num_applicants_int into an integer if possible, otherwise NULL
             TRY_CAST(NULLIF(num_applicants_int, '') AS INTEGER) AS num_applicants_int,
 
             work_mode,
@@ -96,7 +97,7 @@ def main():
         [str(DATA_CSV)],
     )
 
-    # 2) Dedup by job_id and keep the "best" row per job_id
+    # Step 2: keep only one row per job_id, preferring the latest scrape
     conn.execute(
         """
         CREATE OR REPLACE TABLE jobs_dedup AS
@@ -106,9 +107,7 @@ def main():
                 ROW_NUMBER() OVER (
                     PARTITION BY job_id
                     ORDER BY
-                        -- prefer rows with non-null scraped_at (most recent scrape)
                         (scraped_at IS NULL) ASC,
-                        -- then the most recent scrape time
                         scraped_at DESC
                 ) AS rn
             FROM jobs
@@ -132,11 +131,11 @@ def main():
         """
     )
 
-    # Replace original `jobs` with the deduped version
+    # Swap out the old jobs table for the cleaned, deduped version
     conn.execute("DROP TABLE jobs")
     conn.execute("ALTER TABLE jobs_dedup RENAME TO jobs")
 
-    # sorted view/table built from deduplicated jobs
+    # Step 3: create a version sorted by posting time for easier querying
     conn.execute(
         """
         CREATE OR REPLACE TABLE jobs_sorted AS
@@ -149,16 +148,16 @@ def main():
     logger.info("Deduped `jobs` table created (one row per job_id).")
     logger.info("Loaded %s into %s as table 'jobs'.", DATA_CSV, DB_PATH)
 
+    # Close DB connection before running geo encoding
     conn.close()
+
+    # After jobs are updated, refresh geo-coded locations as well
     update_geo_locations()
     logger.info("Geo locations table updated.")
 
 
 def hourly_ingestion(interval_seconds=1800):
-    """
-    Periodically rebuild DuckDB from parsed_jobs.csv.
-    Set interval_seconds=3600 for "true hourly" runs.
-    """
+    # Simple loop: rebuild the DuckDB file every X seconds (30 min by default)
     import time
 
     while True:
@@ -173,6 +172,5 @@ def hourly_ingestion(interval_seconds=1800):
 
 
 if __name__ == "__main__":
-
+    # If we run this file directly, start the periodic ingestion loop
     hourly_ingestion(interval_seconds=1800)
-
