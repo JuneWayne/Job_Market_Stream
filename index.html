@@ -917,87 +917,100 @@
             });
 
             // ---- Map aggregation ----
-            const byLocation = d3.group(nodes, d => d.location + "|" + d.lat + "|" + d.lng);
-            let locArray = Array.from(byLocation, ([key, arr]) => {
-                const [loc, lat, lng] = key.split("|");
-                const latNum = Number(lat);
-                const lngNum = Number(lng);
 
-                if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
-                    return null; // skip bad coordinates
-                }
+            // use all jobs for beeswarm, but ONLY geo-capable ones for map
+            const geoNodes = nodes.filter(d =>
+                d.lat != null &&
+                d.lng != null &&
+                !Number.isNaN(d.lat) &&
+                !Number.isNaN(d.lng)
+            );
 
-                const count = arr.length;
-                const avgApplicants = d3.mean(arr, d => d.applicants || 0) || 0;
+            if (!geoNodes.length) {
+                console.warn("No geocoded jobs available for the map in this time window.");
+            } else {
+                const byLocation = d3.group(
+                    geoNodes,
+                    d => `${d.location}|${d.lat}|${d.lng}`
+                );
 
-                let level = "unknown";
-                if (avgApplicants > 0 && avgApplicants < 60) level = "low";
-                else if (avgApplicants >= 60 && avgApplicants < 100) level = "medium";
-                else if (avgApplicants >= 100) level = "high";
+                const locArray = Array.from(byLocation, ([key, arr]) => {
+                    const [loc, lat, lng] = key.split("|");
+                    const latNum = +lat;
+                    const lngNum = +lng;
+                    const count = arr.length;
+                    const avgApplicants = d3.mean(arr, d => d.applicants || 0) || 0;
 
-                return {
-                    location: loc,
-                    lat: latNum,
-                    lng: lngNum,
-                    jobs: arr,
-                    jobCount: count,
-                    avgApplicants,
-                    level
-                };
-            }).filter(Boolean);
+                    let level = "unknown";
+                    if (avgApplicants > 0 && avgApplicants < 60) level = "low";
+                    else if (avgApplicants >= 60 && avgApplicants < 100) level = "medium";
+                    else if (avgApplicants >= 100) level = "high";
 
-            // ---- Leaflet map ----
-            const map = L.map("map").setView([38.0, -95.0], 4); // center on US roughly
-            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                attribution: "© OpenStreetMap contributors"
-            }).addTo(map);
-
-            const clusters = L.markerClusterGroup({
-                spiderfyOnMaxZoom: true,
-                showCoverageOnHover: false
-            });
-
-            locArray.forEach(loc => {
-                const cls =
-                    loc.level === "low" ? "marker-low" :
-                        loc.level === "medium" ? "marker-medium" :
-                            loc.level === "high" ? "marker-high" : "marker-unknown";
-
-                const icon = L.divIcon({
-                    html: `<div class="custom-marker ${cls}" title="${loc.location}: ${loc.jobCount} jobs">${loc.jobCount}</div>`,
-                    className: "",
-                    iconSize: [30, 30],
-                    iconAnchor: [15, 30]
+                    return {
+                        location: loc,
+                        lat: latNum,
+                        lng: lngNum,
+                        jobs: arr,
+                        jobCount: count,
+                        avgApplicants,
+                        level
+                    };
                 });
 
-                const marker = L.marker([loc.lat, loc.lng], { icon });
+                // ---- Leaflet map ----
+                const map = L.map("map").setView([38.0, -95.0], 4); // center on US roughly
+                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                    attribution: "© OpenStreetMap contributors"
+                }).addTo(map);
 
-                let popupHTML = `<div style="font-size: 13px;">
-                    <b>${loc.location}</b><br>
-                    ${loc.jobCount} job${loc.jobCount === 1 ? "" : "s"}<br>
-                    Avg applicants: ${Math.round(loc.avgApplicants) || "N/A"}<br>
-                    <hr>`;
-
-                loc.jobs.slice(0, 20).forEach(job => {
-                    popupHTML += `
-                        <div style="margin-bottom: 8px;">
-                            <strong>
-                            ${job.jobLink
-                            ? `<a href="${job.jobLink}" target="_blank" rel="noopener noreferrer">${job.title}</a>`
-                            : job.title
-                        }
-                            </strong><br>
-                            ${job.company} • ${job.jobFunction}<br>
-                            <small>${job.timeBucket} • ${job.degreeLevel}</small>
-                        </div>`;
+                const clusters = L.markerClusterGroup({
+                    spiderfyOnMaxZoom: true,
+                    showCoverageOnHover: false
                 });
 
-                popupHTML += `</div>`;
-                marker.bindPopup(popupHTML);
-                clusters.addLayer(marker);
-            });
+                locArray.forEach(loc => {
+                    const cls =
+                        loc.level === "low" ? "marker-low" :
+                            loc.level === "medium" ? "marker-medium" :
+                                loc.level === "high" ? "marker-high" : "marker-unknown";
 
-            map.addLayer(clusters);
+                    const icon = L.divIcon({
+                        html: `<div class="custom-marker ${cls}" title="${loc.location}: ${loc.jobCount} jobs">${loc.jobCount}</div>`,
+                        className: "",
+                        iconSize: [30, 30],
+                        iconAnchor: [15, 30]
+                    });
+
+                    const marker = L.marker([loc.lat, loc.lng], { icon });
+
+                    let popupHTML = `<div style="font-size: 13px;">
+                        <b>${loc.location}</b><br>
+                        ${loc.jobCount} job${loc.jobCount === 1 ? "" : "s"}<br>
+                        Avg applicants: ${Math.round(loc.avgApplicants) || "N/A"}<br>
+                        <hr>`;
+
+                    loc.jobs.slice(0, 20).forEach(job => {
+                        popupHTML += `
+                            <div style="margin-bottom: 8px;">
+                                <strong>
+                                ${job.jobLink
+                                ? `<a href="${job.jobLink}" target="_blank" rel="noopener noreferrer">${job.title}</a>`
+                                : job.title
+                            }
+                                </strong><br>
+                                ${job.company} • ${job.jobFunction}<br>
+                                <small>${job.timeBucket} • ${job.degreeLevel}</small>
+                            </div>`;
+                    });
+
+                    popupHTML += `</div>`;
+                    marker.bindPopup(popupHTML);
+                    clusters.addLayer(marker);
+                });
+
+                map.addLayer(clusters);
+            }
+
 
             // ---- Beeswarm ----
             const svg = d3.select("#beeswarm-svg");
