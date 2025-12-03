@@ -75,10 +75,23 @@ def process_one_doc(doc: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
     Build raw dict from Mongo doc, run it through parse_job_postings,
     and make sure required fields exist for CSV.
+    
+    Uses posted_at from MongoDB (actual timestamp) instead of re-parsing
+    the relative time_posted string which would give wrong results.
     """
     try:
         raw = build_raw_from_mongo(doc)
         parsed = parse_job_postings(raw)
+
+        # Override time_posted_parsed with the actual posted_at from MongoDB
+        # This is the real timestamp, not a re-parsed "2 hours ago" string
+        posted_at = doc.get("posted_at")
+        if posted_at:
+            # Convert MongoDB datetime to ISO string format
+            if hasattr(posted_at, 'isoformat'):
+                parsed["time_posted_parsed"] = posted_at.isoformat()
+            else:
+                parsed["time_posted_parsed"] = str(posted_at)
 
         # Ensure required fields exist 
         parsed.setdefault("job_description", raw.get("job_description", ""))

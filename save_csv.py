@@ -26,7 +26,9 @@ def append_parsed_job(parsed):
     file_exists = OUTPUT_FILE.exists()
 
     with OUTPUT_FILE.open("a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
+        # Use QUOTE_ALL to ensure all fields are properly quoted
+        # This prevents issues with commas/quotes in job descriptions
+        writer = csv.DictWriter(f, fieldnames=FIELDNAMES, quoting=csv.QUOTE_ALL)
 
         # Write header
         if not file_exists:
