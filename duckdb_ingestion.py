@@ -4,7 +4,6 @@ import logging
 import csv
 from geo_encode import update_geo_locations
 
-# Paths to the main CSV we ingest and the DuckDB file we maintain
 DATA_CSV = Path("data/parsed_jobs.csv")
 DB_PATH = Path("data/jobs.duckdb")
 
@@ -15,8 +14,8 @@ logging.basicConfig(
 logger = logging.getLogger("duckdb_ingestion")
 
 
+# check if a column exists in the csv header
 def csv_has_column(csv_path, column_name):
-    # Quick helper: check if a given column name exists in the CSV header
     with open(csv_path, 'r', encoding='utf-8') as f:
         reader = csv.reader(f)
         header = next(reader, [])
@@ -24,20 +23,17 @@ def csv_has_column(csv_path, column_name):
 
 
 def main():
-    # Make sure the CSV we want to ingest is actually there
     if not DATA_CSV.exists():
         raise FileNotFoundError(
             f"{DATA_CSV} does not exist. Run mongo_populate / consumer first."
         )
 
-    # Open (or create) the DuckDB file
     conn = duckdb.connect(str(DB_PATH))
     
-    # Check if the CSV includes a scraped_at column so we know how to handle it
     has_scraped_at = csv_has_column(DATA_CSV, 'scraped_at')
     logger.info(f"CSV has scraped_at column: {has_scraped_at}")
 
-    # Build the scraped_at expression depending on whether that column exists
+    # build scraped_at parsing clause based on whether column exists
     if has_scraped_at:
         scraped_at_clause = """
             CASE
@@ -51,12 +47,9 @@ def main():
             END AS scraped_at
         """
     else:
-        # Cast NULL to TIMESTAMPTZ so it matches time_posted_parsed type
-        # This is important for COALESCE to work in the API queries
         scraped_at_clause = "CAST(NULL AS TIMESTAMP WITH TIME ZONE) AS scraped_at"
 
-    # Step 1: read the CSV into DuckDB and normalize basic fields / timestamps
-    # Using explicit CSV options to handle messy real-world data
+    # load csv into duckdb with timestamp parsing
     conn.execute(
         f"""
         CREATE OR REPLACE TABLE jobs AS
@@ -81,7 +74,6 @@ def main():
             skills,
             degree_requirement,
 
-            -- Try a few common formats to turn time_posted_parsed into a real timestamp
             CASE
                 WHEN time_posted_parsed IS NULL OR time_posted_parsed = '' THEN NULL
                 ELSE COALESCE(
@@ -94,7 +86,6 @@ def main():
 
             application_link,
 
-            -- Turn num_applicants_int into an integer if possible, otherwise NULL
             TRY_CAST(NULLIF(num_applicants_int, '') AS INTEGER) AS num_applicants_int,
 
             work_mode,
@@ -105,7 +96,7 @@ def main():
         [str(DATA_CSV)],
     )
 
-    # Step 2: keep only one row per job_id, preferring the latest scrape
+    # deduplicate by job_id, keep most recent scrape
     conn.execute(
         """
         CREATE OR REPLACE TABLE jobs_dedup AS
@@ -139,11 +130,10 @@ def main():
         """
     )
 
-    # Swap out the old jobs table for the cleaned, deduped version
     conn.execute("DROP TABLE jobs")
     conn.execute("ALTER TABLE jobs_dedup RENAME TO jobs")
 
-    # Step 3: create a version sorted by posting time for easier querying
+    # create sorted version for faster queries
     conn.execute(
         """
         CREATE OR REPLACE TABLE jobs_sorted AS
@@ -156,16 +146,15 @@ def main():
     logger.info("Deduped `jobs` table created (one row per job_id).")
     logger.info("Loaded %s into %s as table 'jobs'.", DATA_CSV, DB_PATH)
 
-    # Close DB connection before running geo encoding
     conn.close()
 
-    # After jobs are updated, refresh geo-coded locations as well
+    # add lat/lng for job locations
     update_geo_locations()
     logger.info("Geo locations table updated.")
 
 
+# rebuild duckdb every few minutes
 def hourly_ingestion(interval_seconds=180):
-    # Simple loop: rebuild the DuckDB file every X seconds
     import time
 
     while True:
@@ -180,5 +169,4 @@ def hourly_ingestion(interval_seconds=180):
 
 
 if __name__ == "__main__":
-    # If we run this file directly, start the periodic ingestion loop
     hourly_ingestion(interval_seconds=180)

@@ -9,11 +9,9 @@ from datetime import datetime, timedelta, timezone
 import traceback
 
 DB_PATH = Path("data/jobs.duckdb")
-
-# FastAPI app for serving job market analytics
 app = FastAPI(title="Job Market Analytics API")
 
-# CORS setup for browser-based dashboards and static frontends
+# allow any website to call this api
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,10 +21,10 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# Global error handling with JSON payload and CORS headers
+
+# catch errors and return json with cors headers
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Ensure CORS headers are sent even when errors occur."""
     print(f"Error: {exc}")
     traceback.print_exc()
     return JSONResponse(
@@ -39,28 +37,26 @@ async def global_exception_handler(request: Request, exc: Exception):
         },
     )
 
-# Lightweight health check to confirm API and CORS wiring
+
+# quick check to see if the api is running
 @app.get("/health")
 async def health_check():
-    """Simple health check endpoint."""
     return {"status": "ok", "cors": "enabled"}
 
 
+# open a read-only connection to the duckdb file
 def get_conn():
-    """Open a read-only connection to the DuckDB file."""
     if not DB_PATH.exists():
         raise RuntimeError(f"DuckDB file {DB_PATH} does not exist.")
     return duckdb.connect(str(DB_PATH), read_only=True)
 
 
-# Simple helper - just use time_posted_parsed for all time-based queries
-# This is when LinkedIn says the job was posted, which is what users care about
+# use linkedin posting time for all time-based queries
 TIME_COLUMN = "time_posted_parsed"
 
 
-# Helper utilities for formatting and JSON-like output
+# turn a datetime into friendly text like "2 days ago"
 def friendly_age(dt: Optional[datetime]) -> Optional[str]:
-    """Turn a datetime into '2 days ago' style text."""
     if dt is None or not isinstance(dt, datetime):
         return None
 
@@ -87,12 +83,12 @@ def friendly_age(dt: Optional[datetime]) -> Optional[str]:
     return f"{months} months ago"
 
 
+# convert pandas dataframe to list of dicts
 def df_to_records(df) -> List[Dict[str, Any]]:
-    """Convert a pandas DataFrame to a list of dict records."""
     return df.to_dict(orient="records")
 
 
-# Aggregate stats for basic overview cards
+# basic stats like total jobs, unique companies, date range
 @app.get("/api/overview")
 def overview():
     conn = get_conn()
@@ -118,13 +114,9 @@ def overview():
     }
 
 
-# Job counts grouped by function, optionally filtered by recent days
+# count jobs by function like data analyst, software engineer, etc
 @app.get("/api/jobs_by_function")
 def jobs_by_function(days: Optional[int] = None):
-    """
-    Jobs grouped by job_function.
-    If days is provided, filter to jobs scraped in last `days` days.
-    """
     conn = get_conn()
     time_col = TIME_COLUMN
     
@@ -157,13 +149,9 @@ def jobs_by_function(days: Optional[int] = None):
     return df_to_records(df)
 
 
-# Work mode split (remote, hybrid, on-site, unknown) with optional time filter
+# count jobs by work mode like remote, hybrid, onsite
 @app.get("/api/work_mode")
 def work_mode(days: Optional[int] = None):
-    """
-    Jobs grouped by work_mode (Remote / Hybrid / On-site / Unknown).
-    If days is provided, filter to jobs scraped in last `days` days.
-    """
     conn = get_conn()
     time_col = TIME_COLUMN
     
@@ -196,13 +184,9 @@ def work_mode(days: Optional[int] = None):
     return df_to_records(df)
 
 
-# Top skills extracted from comma-separated skill lists
+# top skills across all jobs, split by comma in the skills column
 @app.get("/api/top_skills")
 def top_skills(limit: int = 30, days: Optional[int] = None):
-    """
-    Returns top N skills across all jobs (or recently scraped if days is given).
-    Assumes a column `skills` with comma-separated values.
-    """
     conn = get_conn()
     time_col = TIME_COLUMN
 
@@ -240,10 +224,9 @@ def top_skills(limit: int = 30, days: Optional[int] = None):
     return df_to_records(df)
 
 
-# Daily job counts for time-series charts
+# job counts per day for time series charts
 @app.get("/api/daily_counts")
 def daily_counts(days: int = 180):
-    """Number of jobs by posting day, based on time_posted_parsed."""
     conn = get_conn()
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     df = conn.execute(
@@ -264,10 +247,9 @@ def daily_counts(days: int = 180):
     return df_to_records(df)
 
 
-# Hourly job counts based on scrape time or posting time
+# job counts per hour for recent activity
 @app.get("/api/hourly_counts")
 def hourly_counts(hours: int = 24):
-    """Jobs scraped per hour for the last `hours` hours."""
     conn = get_conn()
     time_col = TIME_COLUMN
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
@@ -289,12 +271,12 @@ def hourly_counts(hours: int = 24):
     return df_to_records(df)
 
 
-# Shared job list for beeswarm chart and map visualization
+# shared query for beeswarm and map visualizations
 def _raw_beeswarm_query(limit: int, hours: int):
-    """Shared query used by /api/beeswarm_jobs and /api/map_jobs."""
     conn = get_conn()
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
 
+    # try joining with geo_locations for lat/lng, fall back if table missing
     try:
         df = conn.execute(
             """
@@ -363,30 +345,27 @@ def _raw_beeswarm_query(limit: int, hours: int):
     return df_to_records(df)
 
 
-# Job feed backing beeswarm chart
+# jobs for beeswarm chart
 @app.get("/api/beeswarm_jobs")
 def beeswarm_jobs(
     limit: int = Query(2000, ge=1, le=5000),
     hours: int = Query(24, ge=1, le=24 * 7),
 ):
-    """Jobs for beeswarm + map, last `hours` hours."""
     return _raw_beeswarm_query(limit=limit, hours=hours)
 
 
-# Job feed alias for map-specific calls
+# jobs for map visualization, same data as beeswarm
 @app.get("/api/map_jobs")
 def map_jobs_alias(
     limit: int = Query(2000, ge=1, le=5000),
     hours: int = Query(24, ge=1, le=24 * 7),
 ):
-    """Alias for map usage."""
     return _raw_beeswarm_query(limit=limit, hours=hours)
 
 
-# Heatmap data for competition by day-of-week and hour
+# heatmap of average applicants by day of week and hour
 @app.get("/api/competition_heatmap")
 def competition_heatmap(days: int = 30):
-    """Average applicant count by day of week and hour."""
     conn = get_conn()
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     df = conn.execute(
@@ -408,10 +387,9 @@ def competition_heatmap(days: int = 30):
     return df_to_records(df)
 
 
-# Skills network nodes for graph-based visualizations
+# skill nodes for network graph visualization
 @app.get("/api/skills_network")
 def skills_network(limit: int = 50, days: int = 30):
-    """Skill co-occurrence data for network visualization (nodes only for now). Uses scraped_at."""
     conn = get_conn()
     time_col = TIME_COLUMN
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
@@ -445,14 +423,12 @@ def skills_network(limit: int = 50, days: int = 30):
         for _, row in top_skills_df.iterrows()
     ]
 
-    # Skills network edges left empty for now
     return {"nodes": nodes, "edges": []}
 
 
-# Company-level posting velocity for trend views
+# top companies and how fast they post jobs over time
 @app.get("/api/company_velocity")
 def company_velocity(days: int = 30, top_n: int = 20):
-    """Top companies' hiring rate changes over time."""
     conn = get_conn()
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     df = conn.execute(
@@ -495,10 +471,9 @@ def company_velocity(days: int = 30, top_n: int = 20):
     return df_to_records(df)
 
 
-# Lifecycle buckets for job age and applicant activity
+# group jobs by age buckets like new, fresh, stale
 @app.get("/api/job_lifecycle")
 def job_lifecycle():
-    """Job posting lifecycle stages."""
     conn = get_conn()
     df = conn.execute(
         """
@@ -539,10 +514,9 @@ def job_lifecycle():
     return df_to_records(df)
 
 
-# Skill demand trends across a recent vs older window
+# compare skill mentions in recent vs older time window
 @app.get("/api/trending_skills")
 def trending_skills(days_back: int = 30, top_n: int = 20):
-    """Skills with biggest growth/decline in demand. Uses scraped_at for time comparison."""
     conn = get_conn()
     time_col = TIME_COLUMN
     mid_date = datetime.now(timezone.utc) - timedelta(days=days_back // 2)
@@ -596,13 +570,9 @@ def trending_skills(days_back: int = 30, top_n: int = 20):
     return df_to_records(df)
 
 
-# Weekly work mode percentages over time
+# work mode percentages per week over time
 @app.get("/api/remote_evolution")
 def remote_evolution(days: int = 180):
-    """
-    Work mode distribution over time (weekly percentages per work_mode).
-    Returns: [{ week, work_mode, percentage }, ...]
-    """
     conn = get_conn()
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     df = conn.execute(
@@ -640,13 +610,9 @@ def remote_evolution(days: int = 180):
     return df_to_records(df)
 
 
-# Culture-related keyword frequencies pulled from job descriptions
+# count culture keywords in job descriptions
 @app.get("/api/culture_keywords")
 def culture_keywords(limit: int = 20):
-    """
-    Simple culture keyword frequency from job descriptions.
-    Returns [{ keyword, count, percentage }, ...]
-    """
     conn = get_conn()
     keywords = [
         "inclusive", "diverse", "collaborative", "remote",
@@ -670,7 +636,6 @@ def culture_keywords(limit: int = 20):
 
     results: List[Dict[str, Any]] = []
     for kw in keywords:
-        # Case-insensitive keyword match in job descriptions
         count = int(desc_series.str.contains(kw, case=False, regex=False).sum())
         if count > 0:
             results.append(
@@ -685,14 +650,9 @@ def culture_keywords(limit: int = 20):
     return results[:limit]
 
 
-# Snapshot metrics for recent scraping activity
+# jobs posted in last hour and last 24 hours with trending info
 @app.get("/api/pulse_metrics")
 def pulse_metrics():
-    """
-    Real-time pulse metrics based on job posting time (time_posted_parsed).
-    Shows jobs posted in the last hour, last 24 hours, with hottest locations/functions.
-    Simple approach: current_time - time_posted_parsed to determine recency.
-    """
     conn = get_conn()
     time_col = TIME_COLUMN
 
@@ -759,7 +719,7 @@ def pulse_metrics():
     }
 
 
-# Root help endpoint listing available analytics routes
+# list all available endpoints
 @app.get("/")
 async def root():
     return {
