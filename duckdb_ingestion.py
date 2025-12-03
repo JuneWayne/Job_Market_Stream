@@ -164,8 +164,8 @@ def main():
     logger.info("Geo locations table updated.")
 
 
-def hourly_ingestion(interval_seconds=1800):
-    # Simple loop: rebuild the DuckDB file every X seconds (30 min by default)
+def hourly_ingestion(interval_seconds=180):
+    # Simple loop: rebuild the DuckDB file every X seconds
     import time
 
     while True:
@@ -181,4 +181,4 @@ def hourly_ingestion(interval_seconds=1800):
 
 if __name__ == "__main__":
     # If we run this file directly, start the periodic ingestion loop
-    hourly_ingestion(interval_seconds=1800)
+    hourly_ingestion(interval_seconds=180)
