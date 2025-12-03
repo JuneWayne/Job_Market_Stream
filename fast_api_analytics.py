@@ -53,74 +53,9 @@ def get_conn():
     return duckdb.connect(str(DB_PATH), read_only=True)
 
 
-def get_time_column(conn) -> str:
-    """
-    Figure out which time column to use for "recent jobs" queries.
-    
-    We have two time columns:
-    - time_posted_parsed: when LinkedIn says the job was posted  
-    - scraped_at: when WE actually scraped it (newer data only)
-    
-    scraped_at must exist AND be a TIMESTAMP type (not INTEGER from NULL).
-    If it's not usable, we just use time_posted_parsed.
-    
-    NOTE: We check this fresh each time because duckdb_refresher rebuilds
-    the database every 30 minutes, and the schema could change.
-    """
-    try:
-        # Check if scraped_at exists AND is a timestamp type (not INTEGER)
-        result = conn.execute("""
-            SELECT data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'jobs' AND column_name = 'scraped_at'
-        """).fetchone()
-        
-        # Only usable if it's a timestamp type
-        if result and 'TIMESTAMP' in result[0].upper():
-            return "COALESCE(scraped_at, time_posted_parsed)"
-    except:
-        pass
-    
-    return "time_posted_parsed"
-
-
-# Debug endpoint to see what time column is being used
-@app.get("/api/debug_time_column")
-def debug_time_column():
-    """Debug endpoint to check scraped_at column status."""
-    conn = get_conn()
-    time_col = get_time_column(conn)
-    
-    # Get scraped_at column info
-    try:
-        col_info = conn.execute("""
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'jobs' AND column_name = 'scraped_at'
-        """).fetchone()
-    except:
-        col_info = None
-    
-    # Count non-null scraped_at values
-    try:
-        non_null_count = conn.execute("""
-            SELECT COUNT(*) FROM jobs WHERE scraped_at IS NOT NULL
-        """).fetchone()[0] if col_info else 0
-    except:
-        non_null_count = 0
-    
-    # Get total job count
-    total_jobs = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
-    
-    conn.close()
-    
-    return {
-        "time_column_used": time_col,
-        "scraped_at_column_exists": col_info is not None,
-        "scraped_at_data_type": col_info[1] if col_info else None,
-        "scraped_at_non_null_count": non_null_count,
-        "total_jobs": total_jobs,
-    }
+# Simple helper - just use time_posted_parsed for all time-based queries
+# This is when LinkedIn says the job was posted, which is what users care about
+TIME_COLUMN = "time_posted_parsed"
 
 
 # Helper utilities for formatting and JSON-like output
@@ -191,7 +126,7 @@ def jobs_by_function(days: Optional[int] = None):
     If days is provided, filter to jobs scraped in last `days` days.
     """
     conn = get_conn()
-    time_col = get_time_column(conn)
+    time_col = TIME_COLUMN
     
     if days is None:
         df = conn.execute(
@@ -230,7 +165,7 @@ def work_mode(days: Optional[int] = None):
     If days is provided, filter to jobs scraped in last `days` days.
     """
     conn = get_conn()
-    time_col = get_time_column(conn)
+    time_col = TIME_COLUMN
     
     if days is None:
         df = conn.execute(
@@ -269,7 +204,7 @@ def top_skills(limit: int = 30, days: Optional[int] = None):
     Assumes a column `skills` with comma-separated values.
     """
     conn = get_conn()
-    time_col = get_time_column(conn)
+    time_col = TIME_COLUMN
 
     base_query = """
         WITH exploded AS (
@@ -334,7 +269,7 @@ def daily_counts(days: int = 180):
 def hourly_counts(hours: int = 24):
     """Jobs scraped per hour for the last `hours` hours."""
     conn = get_conn()
-    time_col = get_time_column(conn)
+    time_col = TIME_COLUMN
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     df = conn.execute(
         f"""
@@ -478,7 +413,7 @@ def competition_heatmap(days: int = 30):
 def skills_network(limit: int = 50, days: int = 30):
     """Skill co-occurrence data for network visualization (nodes only for now). Uses scraped_at."""
     conn = get_conn()
-    time_col = get_time_column(conn)
+    time_col = TIME_COLUMN
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
     top_skills_df = conn.execute(
@@ -609,7 +544,7 @@ def job_lifecycle():
 def trending_skills(days_back: int = 30, top_n: int = 20):
     """Skills with biggest growth/decline in demand. Uses scraped_at for time comparison."""
     conn = get_conn()
-    time_col = get_time_column(conn)
+    time_col = TIME_COLUMN
     mid_date = datetime.now(timezone.utc) - timedelta(days=days_back // 2)
     start_date = datetime.now(timezone.utc) - timedelta(days=days_back)
 
@@ -754,13 +689,12 @@ def culture_keywords(limit: int = 20):
 @app.get("/api/pulse_metrics")
 def pulse_metrics():
     """
-    Real-time metrics based on WHEN JOBS WERE SCRAPED (scraped_at),
-    not when they were originally posted on LinkedIn (time_posted_parsed).
-    This shows actual recent scraping activity.
-    Falls back to time_posted_parsed if scraped_at column doesn't exist.
+    Real-time pulse metrics based on job posting time (time_posted_parsed).
+    Shows jobs posted in the last hour, last 24 hours, with hottest locations/functions.
+    Simple approach: current_time - time_posted_parsed to determine recency.
     """
     conn = get_conn()
-    time_col = get_time_column(conn)
+    time_col = TIME_COLUMN
 
     now = datetime.now(timezone.utc)
     last_hour = now - timedelta(hours=1)
