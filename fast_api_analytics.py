@@ -53,9 +53,6 @@ def get_conn():
     return duckdb.connect(str(DB_PATH), read_only=True)
 
 
-# Cache: None = not checked yet, True = usable scraped_at, False = not usable
-_scraped_at_usable = None
-
 def get_time_column(conn) -> str:
     """
     Figure out which time column to use for "recent jobs" queries.
@@ -66,31 +63,64 @@ def get_time_column(conn) -> str:
     
     scraped_at must exist AND be a TIMESTAMP type (not INTEGER from NULL).
     If it's not usable, we just use time_posted_parsed.
+    
+    NOTE: We check this fresh each time because duckdb_refresher rebuilds
+    the database every 30 minutes, and the schema could change.
     """
-    global _scraped_at_usable
+    try:
+        # Check if scraped_at exists AND is a timestamp type (not INTEGER)
+        result = conn.execute("""
+            SELECT data_type 
+            FROM information_schema.columns 
+            WHERE table_name = 'jobs' AND column_name = 'scraped_at'
+        """).fetchone()
+        
+        # Only usable if it's a timestamp type
+        if result and 'TIMESTAMP' in result[0].upper():
+            return "COALESCE(scraped_at, time_posted_parsed)"
+    except:
+        pass
     
-    if _scraped_at_usable is None:
-        try:
-            check_conn = duckdb.connect(str(DB_PATH), read_only=True)
-            # Check if scraped_at exists AND is a timestamp type (not INTEGER)
-            result = check_conn.execute("""
-                SELECT data_type 
-                FROM information_schema.columns 
-                WHERE table_name = 'jobs' AND column_name = 'scraped_at'
-            """).fetchone()
-            check_conn.close()
-            
-            # Only usable if it's a timestamp type
-            if result and 'TIMESTAMP' in result[0].upper():
-                _scraped_at_usable = True
-            else:
-                _scraped_at_usable = False
-        except:
-            _scraped_at_usable = False
-    
-    if _scraped_at_usable:
-        return "COALESCE(scraped_at, time_posted_parsed)"
     return "time_posted_parsed"
+
+
+# Debug endpoint to see what time column is being used
+@app.get("/api/debug_time_column")
+def debug_time_column():
+    """Debug endpoint to check scraped_at column status."""
+    conn = get_conn()
+    time_col = get_time_column(conn)
+    
+    # Get scraped_at column info
+    try:
+        col_info = conn.execute("""
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = 'jobs' AND column_name = 'scraped_at'
+        """).fetchone()
+    except:
+        col_info = None
+    
+    # Count non-null scraped_at values
+    try:
+        non_null_count = conn.execute("""
+            SELECT COUNT(*) FROM jobs WHERE scraped_at IS NOT NULL
+        """).fetchone()[0] if col_info else 0
+    except:
+        non_null_count = 0
+    
+    # Get total job count
+    total_jobs = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+    
+    conn.close()
+    
+    return {
+        "time_column_used": time_col,
+        "scraped_at_column_exists": col_info is not None,
+        "scraped_at_data_type": col_info[1] if col_info else None,
+        "scraped_at_non_null_count": non_null_count,
+        "total_jobs": total_jobs,
+    }
 
 
 # Helper utilities for formatting and JSON-like output
