@@ -603,7 +603,7 @@
 </head>
 
 <body>
-    <h1>📊 Job Market Analytics Dashboard</h1>
+    <h1>Job Market Analytics Dashboard</h1>
     <div class="subtitle">
         Real-time insights powered by advanced analytics • Updated every 3 minutes
     </div>
@@ -634,7 +634,7 @@
 
     <!-- Competition Heatmap -->
     <div class="card">
-        <h3>🔥 Competition Heatmap - Best Times to Apply</h3>
+        <h3>Competition Heatmap - Best Times to Apply</h3>
         <small>Darker green = fewer applicants (better chance). Darker red = more competition.</small>
         <div id="competition-heatmap"></div>
         <div class="heatmap-legend" id="heatmap-legend"></div>
@@ -644,7 +644,7 @@
     <div class="two-column-grid">
         <!-- Historical Trends -->
         <div>
-            <h2>📈 Historical Trends</h2>
+            <h2>Historical Trends</h2>
 
             <div class="card">
                 <h3>Daily Job Postings</h3>
@@ -667,7 +667,7 @@
 
         <!-- Recent Activity -->
         <div>
-            <h2>⚡ Recent Activity</h2>
+            <h2>Recent Activity</h2>
 
             <div class="card">
                 <h3>Company Hiring Velocity</h3>
@@ -690,7 +690,7 @@
     </div>
 
     <!-- Skills Section -->
-    <h2>🎯 Skills Intelligence</h2>
+    <h2>Skills Intelligence</h2>
 
     <div class="two-column-grid">
         <!-- Skills Network Graph -->
@@ -710,13 +710,13 @@
 
     <!-- Culture Keywords -->
     <div class="card">
-        <h3>💼 Company Culture Keywords</h3>
+        <h3>Company Culture Keywords</h3>
         <small>Most mentioned culture terms in job descriptions</small>
         <div class="keywords-cloud" id="culture-keywords"></div>
     </div>
 
     <!-- Map and Beeswarm -->
-    <h2>🗺️ Geographic Distribution & Job Explorer</h2>
+    <h2>Geographic Distribution & Job Explorer</h2>
 
     <div class="two-column-grid">
         <div class="card">
@@ -770,12 +770,12 @@
                 // Update last hour
                 document.getElementById('pulse-last-hour').textContent = data.last_hour.job_count;
                 const hourChange = document.getElementById('pulse-hour-change');
-                hourChange.textContent = `${data.last_hour.vs_weekly_avg > 0 ? '↑' : '↓'} ${Math.abs(data.last_hour.vs_weekly_avg)}% vs avg`;
+                hourChange.textContent = `${data.last_hour.vs_weekly_avg > 0 ? '+' : '-'}${Math.abs(data.last_hour.vs_weekly_avg)}% vs avg`;
                 hourChange.className = `pulse-change ${data.last_hour.trend}`;
 
                 // Update 24h stats
                 document.getElementById('pulse-24h').textContent = data.last_24h.job_count;
-                document.getElementById('pulse-24h-location').textContent = `📍 ${data.last_24h.hottest_location}`;
+                document.getElementById('pulse-24h-location').textContent = data.last_24h.hottest_location;
 
                 // Update function and applicants
                 document.getElementById('pulse-function').textContent = data.last_24h.hottest_function;
@@ -1061,8 +1061,8 @@
                     const changeClass = skill.trend === 'growing' ? 'growing' :
                         skill.trend === 'declining' ? 'declining' : 'stable';
 
-                    const arrow = skill.trend === 'growing' ? '↑' :
-                        skill.trend === 'declining' ? '↓' : '→';
+                    const arrow = skill.trend === 'growing' ? '+' :
+                        skill.trend === 'declining' ? '-' : '';
 
                     div.append("div")
                         .attr("class", `trending-skill-change ${changeClass}`)
