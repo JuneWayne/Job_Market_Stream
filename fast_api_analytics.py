@@ -481,22 +481,25 @@ def trending_skills(days_back: int = 30, top_n: int = 20):
         FROM skill_periods
         GROUP BY skill
         HAVING MAX(CASE WHEN period = 'older' THEN mentions ELSE 0 END) > 5
+    ),
+    with_calcs AS (
+        SELECT
+            skill,
+            recent_mentions,
+            older_mentions,
+            recent_mentions - older_mentions AS change,
+            CASE
+                WHEN older_mentions = 0 THEN 100 
+                ELSE ((recent_mentions - older_mentions) * 100.0 / older_mentions)
+            END AS change_percent,
+            CASE
+                WHEN recent_mentions > older_mentions THEN 'growing'
+                WHEN recent_mentions < older_mentions THEN 'declining'
+                ELSE 'stable'
+            END AS trend
+        FROM skill_comparison
     )
-    SELECT
-        skill,
-        recent_mentions,
-        older_mentions,
-        recent_mentions - older_mentions AS change,
-        CASE
-            WHEN older_mentions = 0 THEN 100 
-            ELSE ((recent_mentions - older_mentions) * 100.0 / older_mentions)
-        END AS change_percent,
-        CASE
-            WHEN recent_mentions > older_mentions THEN 'growing'
-            WHEN recent_mentions < older_mentions THEN 'declining'
-            ELSE 'stable'
-        END AS trend
-    FROM skill_comparison
+    SELECT * FROM with_calcs
     ORDER BY ABS(change_percent) DESC
     LIMIT %s;
     """
