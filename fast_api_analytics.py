@@ -196,8 +196,9 @@ def top_skills(limit: int = 30, days: Optional[int] = None):
     base_query = """
         WITH exploded AS (
             SELECT
-                TRIM(UNNEST(STRING_TO_ARRAY(skills, ','))) AS skill
-            FROM "job-market-stream"
+                TRIM(s) AS skill
+            FROM "job-market-stream",
+            LATERAL UNNEST(STRING_TO_ARRAY(skills, ',')) AS s
             WHERE skills IS NOT NULL AND skills <> ''
     """
 
@@ -344,8 +345,9 @@ def skills_network(limit: int = 50, days: int = 30):
 
     sql = """
     WITH exploded AS (
-        SELECT job_id, TRIM(UNNEST(STRING_TO_ARRAY(skills, ','))) AS skill
-        FROM "job-market-stream"
+        SELECT job_id, TRIM(s) AS skill
+        FROM "job-market-stream",
+        LATERAL UNNEST(STRING_TO_ARRAY(skills, ',')) AS s
         WHERE skills IS NOT NULL
           AND skills <> ''
           AND time_posted_parsed >= %s
@@ -460,15 +462,16 @@ def trending_skills(days_back: int = 30, top_n: int = 20):
     sql = """
     WITH skill_periods AS (
         SELECT
-            TRIM(UNNEST(STRING_TO_ARRAY(skills, ','))) AS skill,
+            TRIM(s) AS skill,
             CASE WHEN time_posted_parsed >= %s THEN 'recent' ELSE 'older' END AS period,
             COUNT(*) AS mentions
-        FROM "job-market-stream"
+        FROM "job-market-stream",
+        LATERAL UNNEST(STRING_TO_ARRAY(skills, ',')) AS s
         WHERE skills IS NOT NULL
           AND skills <> ''
           AND time_posted_parsed >= %s
-          AND TRIM(UNNEST(STRING_TO_ARRAY(skills, ','))) <> ''
-        GROUP BY TRIM(UNNEST(STRING_TO_ARRAY(skills, ','))), period
+          AND TRIM(s) <> ''
+        GROUP BY TRIM(s), period
     ),
     skill_comparison AS (
         SELECT
