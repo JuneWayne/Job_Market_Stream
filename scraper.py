@@ -117,7 +117,7 @@ def scrape_linkedin(keywords, location, geo_id,
         # For each job ID, request the detailed job posting
         for job_id in id_list:
             detail_url = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{}".format(job_id)
-            detail_response = requests.get(detail_url, headers=HEADERS, timeout=20)
+            detail_response = requests.get(detail_url, headers=HEADERS, timeout=180)
 
             if detail_response.status_code != 200:
                 continue
