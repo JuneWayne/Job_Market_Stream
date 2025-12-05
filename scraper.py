@@ -167,7 +167,7 @@ def scrape_linkedin(keywords, location, geo_id,
                 break
 
             # small delay between detail requests
-            time.sleep(1)
+            time.sleep(2)
 
         if len(job_list) >= max_results:
             break
