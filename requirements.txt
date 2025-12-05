@@ -8,4 +8,5 @@ fastapi
 uvicorn
 bs4
 pymongo
+psycopg2-binary
 uvicorn[standard]
