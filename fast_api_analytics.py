@@ -612,29 +612,30 @@ def pulse_metrics():
     
     row = results[0]
 
-    last_hour_jobs = int(row.get("last_hour_jobs") or 0)
-    last_24h_jobs = int(row.get("last_24h_jobs") or 0)
+    # Convert all numeric values to float/int to handle Decimal types from PostgreSQL
+    last_hour_jobs = float(row.get("last_hour_jobs") or 0)
+    last_24h_jobs = float(row.get("last_24h_jobs") or 0)
     weekly_avg = float(row.get("weekly_avg_per_hour") or 1.0)
     hottest_location = row.get("hottest_location") or "Unknown"
     hottest_function = row.get("hottest_function") or "Unknown"
-    max_applicants_recent = int(row.get("max_applicants_recent") or 0)
+    max_applicants_recent = float(row.get("max_applicants_recent") or 0)
     avg_applicants_recent = float(row.get("avg_applicants_recent") or 0.0)
 
     hour_change = (
-        ((float(last_hour_jobs) - weekly_avg) / weekly_avg * 100.0) if weekly_avg > 0 else 0.0
+        ((last_hour_jobs - weekly_avg) / weekly_avg * 100.0) if weekly_avg > 0 else 0.0
     )
 
     return {
         "last_hour": {
-            "job_count": last_hour_jobs,
+            "job_count": int(last_hour_jobs),
             "vs_weekly_avg": round(hour_change, 1),
             "trend": "up" if hour_change > 0 else "down" if hour_change < 0 else "stable",
         },
         "last_24h": {
-            "job_count": last_24h_jobs,
+            "job_count": int(last_24h_jobs),
             "hottest_location": hottest_location,
             "hottest_function": hottest_function,
-            "max_applicants": max_applicants_recent,
+            "max_applicants": int(max_applicants_recent),
             "avg_applicants": round(avg_applicants_recent, 1),
         },
     }
