@@ -67,13 +67,15 @@ services:
     command: ["python", "producer.py"]
     restart: "unless-stopped"
 
-  duckdb_refresher:
+  supabase_ingestor:
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
       - consumer
-    command: ["python", "duckdb_ingestion.py"]
+    command: ["python", "supabase_ingestion.py"]
     restart: unless-stopped
     volumes:
       - ./data:/app/data
+    env_file:
+      - .env
