@@ -1,13 +1,14 @@
 from typing import Optional, List, Dict, Any
+import psycopg2
+import psycopg2.extras
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import psycopg2
-import psycopg2.extras
 import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 import traceback
+import pandas as pd
 
 load_dotenv()
 
@@ -46,8 +47,8 @@ async def health_check():
     return {"status": "ok", "cors": "enabled"}
 
 
-# get postgresql connection from environment
-def get_db_connection():
+# get postgresql connection
+def get_conn():
     supabase_pwd = os.getenv("SUPABASE_PWD")
     supabase_host = os.getenv("SUPABASE_HOST", "aws-1-us-east-1.pooler.supabase.com")
     supabase_port = os.getenv("SUPABASE_PORT", "5432")
@@ -59,9 +60,19 @@ def get_db_connection():
     return psycopg2.connect(db_url)
 
 
+# execute query and return pandas dataframe
+def query_to_df(sql: str, params: tuple = None) -> pd.DataFrame:
+    conn = get_conn()
+    try:
+        df = pd.read_sql(sql, conn, params=params)
+        return df
+    finally:
+        conn.close()
+
+
 # execute query and return results as list of dicts
 def query_db(sql: str, params: tuple = None) -> List[Dict[str, Any]]:
-    conn = get_db_connection()
+    conn = get_conn()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     try:
         cursor.execute(sql, params)
@@ -72,223 +83,751 @@ def query_db(sql: str, params: tuple = None) -> List[Dict[str, Any]]:
         conn.close()
 
 
-# count jobs by function like data analyst, software engineer, etc
-@app.get("/api/jobs_by_function")
-async def jobs_by_function():
+# turn a datetime into friendly text like "2 days ago"
+def friendly_age(dt: Optional[datetime]) -> Optional[str]:
+    if dt is None or not isinstance(dt, datetime):
+        return None
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    now = datetime.now(timezone.utc)
+    delta = now - dt
+    days = delta.days
+    hours = delta.seconds // 3600
+
+    if days <= 0:
+        if hours <= 1:
+            return "1 hour ago"
+        return f"{hours} hours ago"
+    if days == 1:
+        return "1 day ago"
+    if days < 7:
+        return f"{days} days ago"
+    weeks = days // 7
+    if weeks < 4:
+        return f"{weeks} weeks ago"
+    months = days // 30
+    return f"{months} months ago"
+
+
+# convert pandas dataframe to list of dicts
+def df_to_records(df) -> List[Dict[str, Any]]:
+    return df.to_dict(orient="records")
+
+
+# basic stats like total jobs, unique companies, date range
+@app.get("/api/overview")
+def overview():
     sql = """
-    SELECT job_function, COUNT(*) as count
-    FROM "job-market-stream"
-    WHERE function IS NOT NULL
-    GROUP BY function
-    ORDER BY count DESC;
-    """
-    results = query_db(sql)
-    return {"functions": results}
-
-
-# get jobs grouped by work mode like remote, hybrid, on-site
-@app.get("/api/work_mode")
-async def work_mode():
-    sql = """
-    SELECT work_mode, COUNT(*) as count
-    FROM "job-market-stream"
-    WHERE work_mode IS NOT NULL
-    GROUP BY work_mode
-    ORDER BY count DESC;
-    """
-    results = query_db(sql)
-    return {"work_modes": results}
-
-
-# get top skills from job descriptions
-@app.get("/api/top_skills")
-async def top_skills(limit: int = 20):
-    sql = """
-    SELECT skill, COUNT(*) as count
-    FROM (
-        SELECT TRIM(UNNEST(STRING_TO_ARRAY(skills, ','))) as skill
-        FROM "job-market-stream"
-        WHERE skills IS NOT NULL AND skills <> ''
-    ) t
-    WHERE skill <> ''
-    GROUP BY skill
-    ORDER BY count DESC
-    LIMIT %s;
-    """
-    results = query_db(sql, (limit,))
-    return {"skills": results}
-
-
-# count jobs posted each day
-@app.get("/api/daily_counts")
-async def daily_counts():
-    sql = """
-    SELECT DATE(time_posted_parsed) as day, COUNT(*) as count
-    FROM "job-market-stream"
-    WHERE time_posted_parsed IS NOT NULL
-    GROUP BY DATE(time_posted_parsed)
-    ORDER BY day ASC;
-    """
-    results = query_db(sql)
-    return {"daily_counts": results}
-
-
-# get jobs grouped by required degree like bachelors, masters, phd, etc
-@app.get("/api/degree")
-async def degree():
-    sql = """
-    SELECT degree_requirement, COUNT(*) as count
-    FROM "job-market-stream"
-    WHERE degree IS NOT NULL
-    GROUP BY degree
-    ORDER BY count DESC;
-    """
-    results = query_db(sql)
-    return {"degrees": results}
-
-
-# get top job titles
-@app.get("/api/top_titles")
-async def top_titles(limit: int = 20):
-    sql = """
-    SELECT job_title, COUNT(*) as count
-    FROM "job-market-stream"
-    WHERE title IS NOT NULL
-    GROUP BY title
-    ORDER BY count DESC
-    LIMIT %s;
-    """
-    results = query_db(sql, (limit,))
-    return {"titles": results}
-
-
-# get top companies hiring
-@app.get("/api/top_companies")
-async def top_companies(limit: int = 20):
-    sql = """
-    SELECT company_name, COUNT(*) as count
-    FROM "job-market-stream"
-    WHERE company IS NOT NULL
-    GROUP BY company
-    ORDER BY count DESC
-    LIMIT %s;
-    """
-    results = query_db(sql, (limit,))
-    return {"companies": results}
-
-
-# get jobs grouped by location
-@app.get("/api/locations")
-async def locations(limit: int = 20):
-    sql = """
-    SELECT location, COUNT(*) as count
-    FROM "job-market-stream"
-    WHERE location IS NOT NULL
-    GROUP BY location
-    ORDER BY count DESC
-    LIMIT %s;
-    """
-    results = query_db(sql, (limit,))
-    return {"locations": results}
-
-
-# search jobs by keyword
-@app.get("/api/search")
-async def search(q: str, limit: int = 50):
-    sql = """
-    SELECT * FROM "job-market-stream"
-    WHERE title ILIKE %s
-       OR company ILIKE %s
-       OR job_description ILIKE %s
-       OR skills ILIKE %s
-    LIMIT %s;
-    """
-    search_term = f"%{q}%"
-    results = query_db(sql, (search_term, search_term, search_term, search_term, limit))
-    return {"results": results}
-
-
-# get jobs with salary ranges for beeswarm chart
-@app.get("/api/beeswarm")
-async def beeswarm(function: Optional[str] = None, limit: int = 500):
-    if function:
-        sql = """
-        SELECT job_title, company, function, salary_min, salary_max, location
-        FROM "job-market-stream"
-        WHERE function = %s
-        LIMIT %s;
-        """
-        results = query_db(sql, (function, limit))
-    else:
-        sql = """
-        SELECT job_title, company, function, salary_min, salary_max, location
-        FROM "job-market-stream"
-        LIMIT %s;
-        """
-        results = query_db(sql, (limit,))
-    
-    return {"jobs": results}
-
-
-# get list of valid job functions for filtering
-@app.get("/api/valid_functions")
-async def valid_functions():
-    sql = """
-    SELECT DISTINCT function
-    FROM "job-market-stream"
-    WHERE function IS NOT NULL
-    ORDER BY function ASC;
-    """
-    results = query_db(sql)
-    functions = [r["function"] for r in results]
-    return {"functions": functions}
-
-
-# get pulse metrics on job market health
-@app.get("/api/pulse")
-async def pulse(days: int = 7):
-    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
-    sql = """
-    SELECT 
-        COUNT(*) as total_jobs,
-        COUNT(DISTINCT company) as unique_companies,
-        COUNT(DISTINCT function) as unique_functions
-    FROM "job-market-stream"
-    WHERE time_posted_parsed >= %s;
-    """
-    results = query_db(sql, (cutoff_date,))
-    if results:
-        return results[0]
-    return {"total_jobs": 0, "unique_companies": 0, "unique_functions": 0}
-
-
-# get time range of data in the database
-@app.get("/api/time_range")
-async def time_range():
-    sql = """
-    SELECT 
-        MIN(time_posted_parsed) as min_date,
-        MAX(time_posted_parsed) as max_date
+    SELECT
+        COUNT(*)                           AS total_jobs,
+        COUNT(DISTINCT company_name)       AS unique_companies,
+        COUNT(DISTINCT location)           AS unique_locations,
+        MIN(time_posted_parsed)            AS earliest_posting,
+        MAX(time_posted_parsed)            AS latest_posting
     FROM "job-market-stream";
     """
     results = query_db(sql)
     if results:
         return results[0]
-    return {"min_date": None, "max_date": None}
+    return {}
 
 
-# count jobs posted each hour for hourly trends
+# count jobs by function like data analyst, software engineer, etc
+@app.get("/api/jobs_by_function")
+def jobs_by_function(days: Optional[int] = None):
+    if days is None:
+        sql = """
+        SELECT
+            COALESCE(job_function, 'Unknown') AS job_function,
+            COUNT(*) AS count
+        FROM "job-market-stream"
+        GROUP BY 1
+        ORDER BY count DESC;
+        """
+        df = query_to_df(sql)
+    else:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        sql = """
+        SELECT
+            COALESCE(job_function, 'Unknown') AS job_function,
+            COUNT(*) AS count
+        FROM "job-market-stream"
+        WHERE time_posted_parsed >= %s
+        GROUP BY 1
+        ORDER BY count DESC;
+        """
+        df = query_to_df(sql, (cutoff,))
+    return df_to_records(df)
+
+
+# count jobs by work mode like remote, hybrid, onsite
+@app.get("/api/work_mode")
+def work_mode(days: Optional[int] = None):
+    if days is None:
+        sql = """
+        SELECT
+            COALESCE(work_mode, 'Unknown') AS work_mode,
+            COUNT(*) AS count
+        FROM "job-market-stream"
+        GROUP BY 1
+        ORDER BY count DESC;
+        """
+        df = query_to_df(sql)
+    else:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        sql = """
+        SELECT
+            COALESCE(work_mode, 'Unknown') AS work_mode,
+            COUNT(*) AS count
+        FROM "job-market-stream"
+        WHERE time_posted_parsed >= %s
+        GROUP BY 1
+        ORDER BY count DESC;
+        """
+        df = query_to_df(sql, (cutoff,))
+    return df_to_records(df)
+
+
+# top skills across all jobs, split by comma in the skills column
+@app.get("/api/top_skills")
+def top_skills(limit: int = 30, days: Optional[int] = None):
+    base_query = """
+        WITH exploded AS (
+            SELECT
+                TRIM(UNNEST(STRING_TO_ARRAY(skills, ','))) AS skill
+            FROM "job-market-stream"
+            WHERE skills IS NOT NULL AND skills <> ''
+    """
+
+    params: List[Any] = []
+
+    if days is not None:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        base_query += " AND time_posted_parsed >= %s "
+        params.append(cutoff)
+
+    base_query += """
+        )
+        SELECT
+            skill,
+            COUNT(*) AS count
+        FROM exploded
+        WHERE skill <> ''
+        GROUP BY 1
+        ORDER BY count DESC
+        LIMIT %s;
+    """
+    params.append(limit)
+
+    df = query_to_df(base_query, tuple(params))
+    return df_to_records(df)
+
+
+# job counts per day for time series charts
+@app.get("/api/daily_counts")
+def daily_counts(days: int = 180):
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    sql = """
+    SELECT
+        DATE(time_posted_parsed) AS day,
+        COUNT(*) AS job_count
+    FROM "job-market-stream"
+    WHERE time_posted_parsed IS NOT NULL
+      AND time_posted_parsed >= %s
+    GROUP BY 1
+    ORDER BY day;
+    """
+    df = query_to_df(sql, (cutoff,))
+    df["day"] = df["day"].astype(str)
+    return df_to_records(df)
+
+
+# job counts per hour for recent activity
 @app.get("/api/hourly_counts")
-async def hourly_counts(days: int = 1):
-    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+def hourly_counts(hours: int = 24):
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    sql = """
+    SELECT
+        DATE_TRUNC('hour', time_posted_parsed) AS hour,
+        COUNT(*) AS job_count
+    FROM "job-market-stream"
+    WHERE time_posted_parsed IS NOT NULL
+      AND time_posted_parsed >= %s
+    GROUP BY 1
+    ORDER BY hour;
+    """
+    df = query_to_df(sql, (cutoff,))
+    df["hour"] = df["hour"].astype(str)
+    return df_to_records(df)
+
+
+# shared query for beeswarm and map visualizations
+def _raw_beeswarm_query(limit: int, hours: int):
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+    sql = """
+    SELECT
+      job_id,
+      job_title,
+      job_description AS summary,
+      company_name,
+      location,
+      job_function AS "Job Function",
+      '' AS "Industries",
+      skills AS skills_desired,
+      degree_requirement AS degree_qualifications,
+      time_posted_parsed,
+      application_link,
+      application_link AS job_link,
+      num_applicants_int AS num_applicants,
+      work_mode,
+      NULL AS latitude,
+      NULL AS longitude
+    FROM "job-market-stream"
+    WHERE time_posted_parsed IS NOT NULL
+      AND time_posted_parsed >= %s
+    ORDER BY time_posted_parsed DESC
+    LIMIT %s;
+    """
+    
+    df = query_to_df(sql, (cutoff, limit))
+    df["time_posted"] = df["time_posted_parsed"].apply(friendly_age)
+    df["time_posted_parsed"] = df["time_posted_parsed"].astype(str)
+
+    return df_to_records(df)
+
+
+# jobs for beeswarm chart
+@app.get("/api/beeswarm_jobs")
+def beeswarm_jobs(
+    limit: int = Query(2000, ge=1, le=5000),
+    hours: int = Query(24, ge=1, le=24 * 7),
+):
+    return _raw_beeswarm_query(limit=limit, hours=hours)
+
+
+# jobs for map visualization, same data as beeswarm
+@app.get("/api/map_jobs")
+def map_jobs_alias(
+    limit: int = Query(2000, ge=1, le=5000),
+    hours: int = Query(24, ge=1, le=24 * 7),
+):
+    return _raw_beeswarm_query(limit=limit, hours=hours)
+
+
+# heatmap of average applicants by day of week and hour
+@app.get("/api/competition_heatmap")
+def competition_heatmap(days: int = 30):
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     sql = """
     SELECT 
-        DATE_TRUNC('hour', time_posted_parsed) as hour,
-        COUNT(*) as count
+        EXTRACT(DOW FROM time_posted_parsed)::INT AS day_of_week,
+        EXTRACT(HOUR FROM time_posted_parsed)::INT AS hour,
+        AVG(COALESCE(num_applicants_int, 0)) AS avg_applicants,
+        COUNT(*) AS job_count
     FROM "job-market-stream"
     WHERE time_posted_parsed >= %s
-    GROUP BY DATE_TRUNC('hour', time_posted_parsed)
-    ORDER BY hour ASC;
+      AND time_posted_parsed IS NOT NULL
+    GROUP BY 1, 2
+    ORDER BY day_of_week, hour;
     """
-    results = query_db(sql, (cutoff_date,))
-    return {"hourly_counts": results}
+    df = query_to_df(sql, (cutoff,))
+    return df_to_records(df)
+
+
+# skill nodes for network graph visualization
+@app.get("/api/skills_network")
+def skills_network(limit: int = 50, days: int = 30):
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    sql = """
+    WITH exploded AS (
+        SELECT job_id, TRIM(UNNEST(STRING_TO_ARRAY(skills, ','))) AS skill
+        FROM "job-market-stream"
+        WHERE skills IS NOT NULL
+          AND skills <> ''
+          AND time_posted_parsed >= %s
+    )
+    SELECT
+        skill,
+        COUNT(DISTINCT job_id) AS frequency
+    FROM exploded
+    WHERE skill <> ''
+    GROUP BY skill
+    ORDER BY frequency DESC
+    LIMIT %s;
+    """
+    
+    df = query_to_df(sql, (cutoff, limit))
+
+    nodes = [
+        {"id": row["skill"], "label": row["skill"], "size": int(row["frequency"])}
+        for _, row in df.iterrows()
+    ]
+
+    return {"nodes": nodes, "edges": []}
+
+
+# top companies and how fast they post jobs over time
+@app.get("/api/company_velocity")
+def company_velocity(days: int = 30, top_n: int = 20):
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    sql = """
+    WITH company_daily AS (
+        SELECT
+            company_name,
+            DATE_TRUNC('day', time_posted_parsed) AS day,
+            COUNT(*) AS daily_posts
+        FROM "job-market-stream"
+        WHERE time_posted_parsed >= %s
+          AND company_name IS NOT NULL
+        GROUP BY company_name, day
+    ),
+    company_totals AS (
+        SELECT company_name, SUM(daily_posts) AS total_posts
+        FROM company_daily
+        GROUP BY company_name
+        ORDER BY total_posts DESC
+        LIMIT %s
+    )
+    SELECT
+        cd.company_name,
+        cd.day,
+        cd.daily_posts,
+        ct.total_posts,
+        SUM(cd.daily_posts) OVER (
+            PARTITION BY cd.company_name
+            ORDER BY cd.day
+        ) AS cumulative_posts
+    FROM company_daily cd
+    JOIN company_totals ct
+      ON cd.company_name = ct.company_name
+    ORDER BY cd.company_name, cd.day;
+    """
+    df = query_to_df(sql, (cutoff, top_n))
+    df["day"] = df["day"].astype(str)
+    return df_to_records(df)
+
+
+# group jobs by age buckets like new, fresh, stale
+@app.get("/api/job_lifecycle")
+def job_lifecycle():
+    sql = """
+    WITH job_ages AS (
+        SELECT
+            job_id,
+            time_posted_parsed,
+            num_applicants_int,
+            EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - time_posted_parsed)) / 86400 AS days_old,
+            CASE 
+                WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - time_posted_parsed)) / 86400 < 1  THEN 'New (<1 day)'
+                WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - time_posted_parsed)) / 86400 < 3  THEN 'Fresh (1-3 days)'
+                WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - time_posted_parsed)) / 86400 < 7  THEN 'Active (3-7 days)'
+                WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - time_posted_parsed)) / 86400 < 14 THEN 'Aging (1-2 weeks)'
+                WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - time_posted_parsed)) / 86400 < 30 THEN 'Stale (2-4 weeks)'
+                ELSE 'Very Old (>1 month)'
+            END AS lifecycle_stage
+        FROM "job-market-stream"
+        WHERE time_posted_parsed IS NOT NULL
+    )
+    SELECT
+        lifecycle_stage,
+        COUNT(*) AS job_count,
+        AVG(num_applicants_int) AS avg_applicants
+    FROM job_ages
+    GROUP BY lifecycle_stage
+    ORDER BY CASE lifecycle_stage
+        WHEN 'New (<1 day)'      THEN 1
+        WHEN 'Fresh (1-3 days)'  THEN 2
+        WHEN 'Active (3-7 days)' THEN 3
+        WHEN 'Aging (1-2 weeks)' THEN 4
+        WHEN 'Stale (2-4 weeks)' THEN 5
+        ELSE 6
+    END;
+    """
+    df = query_to_df(sql)
+    return df_to_records(df)
+
+
+# compare skill mentions in recent vs older time window
+@app.get("/api/trending_skills")
+def trending_skills(days_back: int = 30, top_n: int = 20):
+    mid_date = datetime.now(timezone.utc) - timedelta(days=days_back // 2)
+    start_date = datetime.now(timezone.utc) - timedelta(days=days_back)
+
+    sql = """
+    WITH skill_periods AS (
+        SELECT
+            TRIM(UNNEST(STRING_TO_ARRAY(skills, ','))) AS skill,
+            CASE WHEN time_posted_parsed >= %s THEN 'recent' ELSE 'older' END AS period,
+            COUNT(*) AS mentions
+        FROM "job-market-stream"
+        WHERE skills IS NOT NULL
+          AND skills <> ''
+          AND time_posted_parsed >= %s
+          AND TRIM(UNNEST(STRING_TO_ARRAY(skills, ','))) <> ''
+        GROUP BY TRIM(UNNEST(STRING_TO_ARRAY(skills, ','))), period
+    ),
+    skill_comparison AS (
+        SELECT
+            skill,
+            MAX(CASE WHEN period = 'recent' THEN mentions ELSE 0 END) AS recent_mentions,
+            MAX(CASE WHEN period = 'older'  THEN mentions ELSE 0 END) AS older_mentions
+        FROM skill_periods
+        GROUP BY skill
+        HAVING MAX(CASE WHEN period = 'older' THEN mentions ELSE 0 END) > 5
+    )
+    SELECT
+        skill,
+        recent_mentions,
+        older_mentions,
+        recent_mentions - older_mentions AS change,
+        CASE
+            WHEN older_mentions = 0 THEN 100 
+            ELSE ((recent_mentions - older_mentions) * 100.0 / older_mentions)
+        END AS change_percent,
+        CASE
+            WHEN recent_mentions > older_mentions THEN 'growing'
+            WHEN recent_mentions < older_mentions THEN 'declining'
+            ELSE 'stable'
+        END AS trend
+    FROM skill_comparison
+    ORDER BY ABS(change_percent) DESC
+    LIMIT %s;
+    """
+    df = query_to_df(sql, (mid_date, start_date, top_n))
+    return df_to_records(df)
+
+
+# work mode percentages per week over time
+@app.get("/api/remote_evolution")
+def remote_evolution(days: int = 180):
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    sql = """
+    WITH weekly AS (
+        SELECT
+            DATE_TRUNC('week', time_posted_parsed) AS week,
+            COALESCE(work_mode, 'Unknown') AS work_mode,
+            COUNT(*) AS cnt
+        FROM "job-market-stream"
+        WHERE time_posted_parsed IS NOT NULL
+          AND time_posted_parsed >= %s
+        GROUP BY 1, 2
+    ),
+    totals AS (
+        SELECT week, SUM(cnt) AS total_cnt
+        FROM weekly
+        GROUP BY week
+    )
+    SELECT
+        w.week,
+        w.work_mode,
+        CASE WHEN t.total_cnt > 0
+             THEN 100.0 * w.cnt / t.total_cnt
+             ELSE 0
+        END AS percentage
+    FROM weekly w
+    JOIN totals t ON w.week = t.week
+    ORDER BY w.week, w.work_mode;
+    """
+    df = query_to_df(sql, (cutoff,))
+    df["week"] = df["week"].astype(str)
+    return df_to_records(df)
+
+
+# count culture keywords in job descriptions
+@app.get("/api/culture_keywords")
+def culture_keywords(limit: int = 20):
+    keywords = [
+        "inclusive", "diverse", "collaborative", "remote",
+        "flexible", "supportive", "growth", "learning",
+        "ownership", "mentorship", "autonomy",
+        "work-life balance", "transparent", "mission-driven",
+        "innovative", "fast-paced", "team-first",
+        "customer obsessed", "impact", "hybrid"
+    ]
+
+    sql = "SELECT job_description FROM \"job-market-stream\" WHERE job_description IS NOT NULL;"
+    df = query_to_df(sql)
+
+    total = len(df)
+    if total == 0:
+        return []
+
+    desc_series = df["job_description"].astype(str)
+
+    results: List[Dict[str, Any]] = []
+    for kw in keywords:
+        count = int(desc_series.str.contains(kw, case=False, regex=False).sum())
+        if count > 0:
+            results.append(
+                {
+                    "keyword": kw,
+                    "count": count,
+                    "percentage": round(100.0 * count / total, 1),
+                }
+            )
+
+    results.sort(key=lambda x: x["count"], reverse=True)
+    return results[:limit]
+
+
+# jobs posted in last hour and last 24 hours with trending info
+@app.get("/api/pulse_metrics")
+def pulse_metrics():
+    now = datetime.now(timezone.utc)
+    last_hour = now - timedelta(hours=1)
+    last_24h = now - timedelta(hours=24)
+    last_week = now - timedelta(days=7)
+
+    sql = """
+    SELECT 
+        COUNT(CASE WHEN time_posted_parsed >= %s THEN 1 END) AS last_hour_jobs,
+        COUNT(CASE WHEN time_posted_parsed >= %s THEN 1 END) AS last_24h_jobs,
+        COUNT(CASE WHEN time_posted_parsed >= %s THEN 1 END) / (7.0 * 24) AS weekly_avg_per_hour,
+        MODE() WITHIN GROUP (
+            ORDER BY CASE WHEN time_posted_parsed >= %s THEN location END
+        ) AS hottest_location,
+        MODE() WITHIN GROUP (
+            ORDER BY CASE WHEN time_posted_parsed >= %s THEN job_function END
+        ) AS hottest_function,
+        MAX(CASE WHEN time_posted_parsed >= %s THEN num_applicants_int END) AS max_applicants_recent,
+        AVG(CASE WHEN time_posted_parsed >= %s THEN num_applicants_int END) AS avg_applicants_recent
+    FROM "job-market-stream"
+    WHERE time_posted_parsed IS NOT NULL;
+    """
+
+    results = query_db(sql, (last_hour, last_24h, last_week, last_24h, last_24h, last_24h, last_24h))
+    
+    if not results:
+        return {}
+    
+    row = results[0]
+
+    last_hour_jobs = row.get("last_hour_jobs") or 0
+    last_24h_jobs = row.get("last_24h_jobs") or 0
+    weekly_avg = row.get("weekly_avg_per_hour") or 1.0
+    hottest_location = row.get("hottest_location") or "Unknown"
+    hottest_function = row.get("hottest_function") or "Unknown"
+    max_applicants_recent = row.get("max_applicants_recent") or 0
+    avg_applicants_recent = float(row.get("avg_applicants_recent") or 0.0)
+
+    hour_change = (
+        ((last_hour_jobs - weekly_avg) / weekly_avg * 100.0) if weekly_avg > 0 else 0.0
+    )
+
+    return {
+        "last_hour": {
+            "job_count": last_hour_jobs,
+            "vs_weekly_avg": round(hour_change, 1),
+            "trend": "up" if hour_change > 0 else "down" if hour_change < 0 else "stable",
+        },
+        "last_24h": {
+            "job_count": last_24h_jobs,
+            "hottest_location": hottest_location,
+            "hottest_function": hottest_function,
+            "max_applicants": max_applicants_recent,
+            "avg_applicants": round(avg_applicants_recent, 1),
+        },
+    }
+
+
+# get unique degree requirements
+@app.get("/api/degree")
+def get_degrees():
+    sql = """
+    SELECT DISTINCT COALESCE(degree_requirement, 'Unknown') AS degree_requirement
+    FROM "job-market-stream"
+    WHERE degree_requirement IS NOT NULL
+    ORDER BY degree_requirement;
+    """
+    df = query_to_df(sql)
+    return df_to_records(df)
+
+
+# get unique job functions
+@app.get("/api/valid_functions")
+def get_valid_functions():
+    sql = """
+    SELECT DISTINCT COALESCE(job_function, 'Unknown') AS job_function
+    FROM "job-market-stream"
+    WHERE job_function IS NOT NULL
+    ORDER BY job_function;
+    """
+    df = query_to_df(sql)
+    return df_to_records(df)
+
+
+# get top job titles
+@app.get("/api/top_titles")
+def top_titles(limit: int = 30, days: Optional[int] = None):
+    if days is None:
+        sql = """
+        SELECT 
+            COALESCE(job_title, 'Unknown') AS job_title,
+            COUNT(*) AS count
+        FROM "job-market-stream"
+        GROUP BY 1
+        ORDER BY count DESC
+        LIMIT %s;
+        """
+        df = query_to_df(sql, (limit,))
+    else:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        sql = """
+        SELECT 
+            COALESCE(job_title, 'Unknown') AS job_title,
+            COUNT(*) AS count
+        FROM "job-market-stream"
+        WHERE time_posted_parsed >= %s
+        GROUP BY 1
+        ORDER BY count DESC
+        LIMIT %s;
+        """
+        df = query_to_df(sql, (cutoff, limit))
+    return df_to_records(df)
+
+
+# get top companies
+@app.get("/api/top_companies")
+def top_companies(limit: int = 30, days: Optional[int] = None):
+    if days is None:
+        sql = """
+        SELECT 
+            COALESCE(company_name, 'Unknown') AS company_name,
+            COUNT(*) AS count
+        FROM "job-market-stream"
+        GROUP BY 1
+        ORDER BY count DESC
+        LIMIT %s;
+        """
+        df = query_to_df(sql, (limit,))
+    else:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        sql = """
+        SELECT 
+            COALESCE(company_name, 'Unknown') AS company_name,
+            COUNT(*) AS count
+        FROM "job-market-stream"
+        WHERE time_posted_parsed >= %s
+        GROUP BY 1
+        ORDER BY count DESC
+        LIMIT %s;
+        """
+        df = query_to_df(sql, (cutoff, limit))
+    return df_to_records(df)
+
+
+# get unique locations
+@app.get("/api/locations")
+def get_locations():
+    sql = """
+    SELECT DISTINCT COALESCE(location, 'Unknown') AS location
+    FROM "job-market-stream"
+    WHERE location IS NOT NULL
+    ORDER BY location;
+    """
+    df = query_to_df(sql)
+    return df_to_records(df)
+
+
+# search jobs by title/description/company
+@app.get("/api/search")
+def search_jobs(q: str = "", limit: int = 50):
+    sql = """
+    SELECT
+        job_id,
+        job_title,
+        job_description AS summary,
+        company_name,
+        location,
+        job_function AS "Job Function",
+        skills AS skills_desired,
+        time_posted_parsed,
+        application_link,
+        num_applicants_int AS num_applicants,
+        work_mode
+    FROM "job-market-stream"
+    WHERE (
+        job_title ILIKE %s OR
+        company_name ILIKE %s OR
+        job_description ILIKE %s OR
+        job_function ILIKE %s
+    )
+    LIMIT %s;
+    """
+    search_term = f"%{q}%"
+    df = query_to_df(sql, (search_term, search_term, search_term, search_term, limit))
+    return df_to_records(df)
+
+
+# get time range of data
+@app.get("/api/time_range")
+def get_time_range():
+    sql = """
+    SELECT
+        MIN(time_posted_parsed) AS min_date,
+        MAX(time_posted_parsed) AS max_date
+    FROM "job-market-stream"
+    WHERE time_posted_parsed IS NOT NULL;
+    """
+    results = query_db(sql)
+    if results:
+        row = results[0]
+        return {
+            "min_date": str(row.get("min_date") or ""),
+            "max_date": str(row.get("max_date") or ""),
+        }
+    return {"min_date": "", "max_date": ""}
+
+
+# beeswarm data (alias for compatibility)
+@app.get("/api/beeswarm")
+def beeswarm_compat(
+    limit: int = Query(2000, ge=1, le=5000),
+    hours: int = Query(24, ge=1, le=24 * 7),
+):
+    return _raw_beeswarm_query(limit=limit, hours=hours)
+
+
+# pulse endpoint (alias)
+@app.get("/api/pulse")
+def pulse_compat():
+    return pulse_metrics()
+
+
+# list all available endpoints
+@app.get("/")
+async def root():
+    return {
+        "message": "Job Market Analytics API - Advanced",
+        "endpoints": [
+            "/api/overview",
+            "/api/jobs_by_function",
+            "/api/work_mode",
+            "/api/top_skills",
+            "/api/daily_counts",
+            "/api/hourly_counts",
+            "/api/beeswarm_jobs",
+            "/api/beeswarm",
+            "/api/map_jobs",
+            "/api/competition_heatmap",
+            "/api/skills_network",
+            "/api/company_velocity",
+            "/api/job_lifecycle",
+            "/api/trending_skills",
+            "/api/remote_evolution",
+            "/api/culture_keywords",
+            "/api/pulse_metrics",
+            "/api/pulse",
+            "/api/degree",
+            "/api/valid_functions",
+            "/api/top_titles",
+            "/api/top_companies",
+            "/api/locations",
+            "/api/search",
+            "/api/time_range",
+        ],
+    }
