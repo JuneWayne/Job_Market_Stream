@@ -1,4 +1,5 @@
 from typing import Optional, List, Dict, Any
+from decimal import Decimal
 import psycopg2
 import psycopg2.extras
 from fastapi import FastAPI, Query, Request
@@ -114,6 +115,18 @@ def friendly_age(dt: Optional[datetime]) -> Optional[str]:
 # convert pandas dataframe to list of dicts
 def df_to_records(df) -> List[Dict[str, Any]]:
     return df.to_dict(orient="records")
+
+
+def to_float(value: Any, default: float = 0.0) -> float:
+    """Convert database numeric values (including Decimal) to float safely."""
+    if value is None:
+        return default
+    if isinstance(value, Decimal):
+        return float(value)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 # basic stats like total jobs, unique companies, date range
@@ -613,13 +626,13 @@ def pulse_metrics():
     row = results[0]
 
     # Convert all numeric values to float/int to handle Decimal types from PostgreSQL
-    last_hour_jobs = float(row.get("last_hour_jobs") or 0)
-    last_24h_jobs = float(row.get("last_24h_jobs") or 0)
-    weekly_avg = float(row.get("weekly_avg_per_hour") or 1.0)
+    last_hour_jobs = to_float(row.get("last_hour_jobs"))
+    last_24h_jobs = to_float(row.get("last_24h_jobs"))
+    weekly_avg = to_float(row.get("weekly_avg_per_hour"))
     hottest_location = row.get("hottest_location") or "Unknown"
     hottest_function = row.get("hottest_function") or "Unknown"
-    max_applicants_recent = float(row.get("max_applicants_recent") or 0)
-    avg_applicants_recent = float(row.get("avg_applicants_recent") or 0.0)
+    max_applicants_recent = to_float(row.get("max_applicants_recent"))
+    avg_applicants_recent = to_float(row.get("avg_applicants_recent"))
 
     hour_change = (
         ((last_hour_jobs - weekly_avg) / weekly_avg * 100.0) if weekly_avg > 0 else 0.0
