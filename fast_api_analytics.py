@@ -481,26 +481,26 @@ def trending_skills(days_back: int = 30, top_n: int = 20):
         FROM skill_periods
         GROUP BY skill
         HAVING MAX(CASE WHEN period = 'older' THEN mentions ELSE 0 END) > 5
-    ),
-    with_calcs AS (
-        SELECT
-            skill,
-            recent_mentions,
-            older_mentions,
-            recent_mentions - older_mentions AS change,
-            CASE
-                WHEN older_mentions = 0 THEN 100 
-                ELSE ((recent_mentions - older_mentions) * 100.0 / older_mentions)
-            END AS change_percent,
-            CASE
-                WHEN recent_mentions > older_mentions THEN 'growing'
-                WHEN recent_mentions < older_mentions THEN 'declining'
-                ELSE 'stable'
-            END AS trend
-        FROM skill_comparison
     )
-    SELECT * FROM with_calcs
-    ORDER BY ABS(change_percent) DESC
+    SELECT
+        skill,
+        recent_mentions,
+        older_mentions,
+        recent_mentions - older_mentions AS change,
+        CASE
+            WHEN older_mentions = 0 THEN 100 
+            ELSE ((recent_mentions - older_mentions) * 100.0 / older_mentions)
+        END AS change_percent,
+        CASE
+            WHEN recent_mentions > older_mentions THEN 'growing'
+            WHEN recent_mentions < older_mentions THEN 'declining'
+            ELSE 'stable'
+        END AS trend
+    FROM skill_comparison
+    ORDER BY CASE
+        WHEN older_mentions = 0 THEN 100 
+        ELSE ABS((recent_mentions - older_mentions) * 100.0 / older_mentions)
+    END DESC
     LIMIT %s;
     """
     df = query_to_df(sql, (mid_date, start_date, top_n))
@@ -612,16 +612,16 @@ def pulse_metrics():
     
     row = results[0]
 
-    last_hour_jobs = row.get("last_hour_jobs") or 0
-    last_24h_jobs = row.get("last_24h_jobs") or 0
-    weekly_avg = row.get("weekly_avg_per_hour") or 1.0
+    last_hour_jobs = int(row.get("last_hour_jobs") or 0)
+    last_24h_jobs = int(row.get("last_24h_jobs") or 0)
+    weekly_avg = float(row.get("weekly_avg_per_hour") or 1.0)
     hottest_location = row.get("hottest_location") or "Unknown"
     hottest_function = row.get("hottest_function") or "Unknown"
-    max_applicants_recent = row.get("max_applicants_recent") or 0
+    max_applicants_recent = int(row.get("max_applicants_recent") or 0)
     avg_applicants_recent = float(row.get("avg_applicants_recent") or 0.0)
 
     hour_change = (
-        ((last_hour_jobs - weekly_avg) / weekly_avg * 100.0) if weekly_avg > 0 else 0.0
+        ((float(last_hour_jobs) - weekly_avg) / weekly_avg * 100.0) if weekly_avg > 0 else 0.0
     )
 
     return {
