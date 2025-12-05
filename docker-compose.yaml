@@ -59,10 +59,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    network_mode: "host"
     depends_on:
       - redpanda
     environment:
-      - KAFKA_SERVER=redpanda:9092
+      - KAFKA_SERVER=localhost:9092
       - KAFKA_TOPIC=job_postings
     command: ["python", "producer.py"]
     restart: "unless-stopped"
