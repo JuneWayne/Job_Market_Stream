@@ -111,4 +111,4 @@ except Exception as e:
 # close connection
 cursor.close()
 conn.close()
-print("Import complete!")
+print("Import complete")
