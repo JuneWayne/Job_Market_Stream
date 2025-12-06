@@ -1836,35 +1836,56 @@
 
             // Create centroids for grouping
             function makeCentroids(groups, dim) {
-                // For industry, pin "Tech - Giant" away from the dense cluster
+                // For industry, give "Other" its own far-right column to avoid clutter
                 if (dim === 'industry') {
-                    const preferredOrder = [
+                    const leftList = [
                         'Tech - Giant',
-                        'Tech - Mid',
                         'Tech - Startup',
-                        'Finance',
                         'Retail',
-                        'Healthcare / Pharma',
-                        'Automotive / Manufacturing',
-                        'Energy / Utilities',
-                        'Other'
+                        'Automotive / Manufacturing'
                     ];
 
-                    const ordered = preferredOrder
-                        .filter(g => groups.includes(g))
-                        .concat(groups.filter(g => !preferredOrder.includes(g)));
+                    const midList = [
+                        'Tech - Mid',
+                        'Finance',
+                        'Healthcare / Pharma',
+                        'Energy / Utilities'
+                    ];
 
-                    const n = ordered.length;
-                    const cols = width >= 700 ? 3 : (width >= 450 ? 2 : 1);
-                    const rows = Math.ceil(n / cols);
-                    const xPad = 50, yPad = 50;
-                    const xs = d3.scalePoint().domain(d3.range(cols)).range([xPad, width - xPad]).padding(0.6);
-                    const ys = d3.scalePoint().domain(d3.range(rows)).range([yPad, height - yPad]).padding(0.6);
-                    const map = new Map();
-                    ordered.forEach((name, i) => {
-                        const c = i % cols, r = Math.floor(i / cols);
-                        map.set(name, { x: xs(c), y: ys(r) });
+                    const rightList = ['Other']; // force Other to the isolated column
+
+                    const remaining = groups.filter(g => ![...leftList, ...midList, ...rightList].includes(g));
+
+                    // Bucket groups into columns; overflow goes to the column with the fewest items (except Other stays right)
+                    const cols = [
+                        { x: width * 0.2, names: leftList.filter(g => groups.includes(g)) },
+                        { x: width * 0.5, names: midList.filter(g => groups.includes(g)) },
+                        { x: width * 0.82, names: rightList.filter(g => groups.includes(g)) }
+                    ];
+
+                    remaining.forEach(name => {
+                        // Skip if already placed
+                        if (cols.some(c => c.names.includes(name))) return;
+                        const target = cols.slice(0, 2).sort((a, b) => a.names.length - b.names.length)[0];
+                        target.names.push(name);
                     });
+
+                    // If Other was not present but exists in groups, ensure it is in the right column
+                    if (groups.includes('Other') && !cols[2].names.includes('Other')) cols[2].names.push('Other');
+
+                    const maxRows = Math.max(...cols.map(c => c.names.length), 1);
+                    const yScale = d3.scalePoint()
+                        .domain(d3.range(maxRows))
+                        .range([60, height - 60])
+                        .padding(0.8);
+
+                    const map = new Map();
+                    cols.forEach(col => {
+                        col.names.forEach((name, i) => {
+                            map.set(name, { x: col.x, y: yScale(i) });
+                        });
+                    });
+
                     return map;
                 }
 
