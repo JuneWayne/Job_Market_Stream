@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 
 from kafka import KafkaConsumer
 
