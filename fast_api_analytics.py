@@ -115,9 +115,16 @@ def friendly_age(dt: Optional[datetime]) -> Optional[str]:
 # convert pandas dataframe to list of dicts
 def df_to_records(df) -> List[Dict[str, Any]]:
     # Replace NaN with None for JSON serialization
-    df = df.replace({pd.NA: None, pd.NaT: None})
+    import numpy as np
+    df = df.replace({pd.NA: None, pd.NaT: None, np.nan: None, np.inf: None, -np.inf: None})
     df = df.where(pd.notnull(df), None)
-    return df.to_dict(orient="records")
+    # Extra safety: convert to dict and replace any remaining NaN
+    records = df.to_dict(orient="records")
+    for record in records:
+        for key, value in record.items():
+            if isinstance(value, float) and (np.isnan(value) or np.isinf(value)):
+                record[key] = None
+    return records
 
 
 def to_float(value: Any, default: float = 0.0) -> float:
