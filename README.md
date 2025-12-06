@@ -51,7 +51,7 @@
 
   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
   │   LinkedIn   │     │    Kafka     │     │   Consumer   │     │   Staging    │
-  │   Scraper    │────▶│   Producer   │────▶│  (Redpanda)  │────▶│     CSV      │
+  │   Scraper    │───▶│   Producer   │────▶│  (Redpanda)  │───▶│     CSV      │
   │              │     │              │     │              │     │              │
   │ scraper.py   │     │ producer.py  │     │ consumer.py  │     │parsed_jobs.csv
   └──────────────┘     └──────────────┘     └──────────────┘     └──────┬───────┘
