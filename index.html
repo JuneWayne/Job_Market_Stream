@@ -1632,7 +1632,16 @@
             try {
                 // Fetch data from analytics API
                 const jobsRes = await fetch(`${ANALYTICS_API}/api/beeswarm_jobs?limit=2000&hours=168`);
+
+                if (!jobsRes.ok) {
+                    throw new Error(`API returned ${jobsRes.status}: ${jobsRes.statusText}`);
+                }
+
                 const jobs = await jobsRes.json();
+
+                if (!Array.isArray(jobs)) {
+                    throw new Error('API response is not an array');
+                }
 
                 // No separate summary or geo endpoints needed - data is in jobs
                 const summary = [];
