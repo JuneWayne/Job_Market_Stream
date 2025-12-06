@@ -1874,16 +1874,15 @@
                     if (groups.includes('Other') && !cols[2].names.includes('Other')) cols[2].names.push('Other');
 
                     const maxRows = Math.max(...cols.map(c => c.names.length), 1);
-                    const yScale = d3.scalePoint()
-                        .domain(d3.range(maxRows))
-                        // add extra vertical spread to separate rows more clearly
-                        .range([70, height - 70])
-                        .padding(1.0);
+                    // Explicit larger vertical step to separate rows more clearly
+                    const yStart = 80;
+                    const yEnd = height - 80;
+                    const yStep = maxRows > 1 ? Math.min(180, (yEnd - yStart) / (maxRows - 1)) : 0;
 
                     const map = new Map();
                     cols.forEach(col => {
                         col.names.forEach((name, i) => {
-                            map.set(name, { x: col.x, y: yScale(i) });
+                            map.set(name, { x: col.x, y: yStart + i * yStep });
                         });
                     });
 
