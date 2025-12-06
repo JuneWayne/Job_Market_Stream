@@ -49,6 +49,8 @@ def ensure_table(conn: psycopg2.extensions.connection) -> None:
         job_description TEXT,
         company_name TEXT,
         location TEXT,
+        latitude DOUBLE PRECISION,
+        longitude DOUBLE PRECISION,
         job_function TEXT,
         skills TEXT,
         degree_requirement TEXT,
@@ -62,6 +64,26 @@ def ensure_table(conn: psycopg2.extensions.connection) -> None:
     """
     with conn.cursor() as cursor:
         cursor.execute(create_table_sql)
+        
+        # Add latitude and longitude columns if they don't exist
+        cursor.execute(f"""
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'job-market-stream' AND column_name = 'latitude'
+                ) THEN
+                    ALTER TABLE {TABLE_NAME} ADD COLUMN latitude DOUBLE PRECISION;
+                END IF;
+                
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'job-market-stream' AND column_name = 'longitude'
+                ) THEN
+                    ALTER TABLE {TABLE_NAME} ADD COLUMN longitude DOUBLE PRECISION;
+                END IF;
+            END $$;
+        """)
     conn.commit()
 
 
@@ -82,6 +104,16 @@ def _clean_int(value: Any) -> Optional[int]:
         return None
     try:
         return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _clean_float(value: Any) -> Optional[float]:
+    """Clean and validate float values (for latitude/longitude)."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    try:
+        return float(value)
     except (TypeError, ValueError):
         return None
 
@@ -124,6 +156,8 @@ def load_records() -> List[Tuple[Any, ...]]:
             _clean_str(row.get("job_description")),
             _clean_str(row.get("company_name")),
             _clean_str(row.get("location")),
+            _clean_float(row.get("latitude")),
+            _clean_float(row.get("longitude")),
             _clean_str(row.get("job_function")),
             _clean_str(row.get("skills")),
             _clean_str(row.get("degree_requirement")),
@@ -153,8 +187,8 @@ def upsert_records(
 
     insert_sql = f"""
     INSERT INTO {TABLE_NAME} (
-        job_id, job_title, job_description, company_name, location, job_function,
-        skills, degree_requirement, time_posted_parsed, application_link,
+        job_id, job_title, job_description, company_name, location, latitude, longitude,
+        job_function, skills, degree_requirement, time_posted_parsed, application_link,
         num_applicants_int, work_mode, scraped_at
     ) VALUES %s
     ON CONFLICT (job_id) DO UPDATE SET
@@ -162,6 +196,8 @@ def upsert_records(
         job_description = COALESCE(EXCLUDED.job_description, {TABLE_NAME}.job_description),
         company_name = COALESCE(EXCLUDED.company_name, {TABLE_NAME}.company_name),
         location = COALESCE(EXCLUDED.location, {TABLE_NAME}.location),
+        latitude = COALESCE(EXCLUDED.latitude, {TABLE_NAME}.latitude),
+        longitude = COALESCE(EXCLUDED.longitude, {TABLE_NAME}.longitude),
         job_function = COALESCE(EXCLUDED.job_function, {TABLE_NAME}.job_function),
         skills = COALESCE(EXCLUDED.skills, {TABLE_NAME}.skills),
         degree_requirement = COALESCE(EXCLUDED.degree_requirement, {TABLE_NAME}.degree_requirement),

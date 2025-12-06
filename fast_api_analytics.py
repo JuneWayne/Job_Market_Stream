@@ -297,8 +297,8 @@ def _raw_beeswarm_query(limit: int, hours: int):
       application_link AS job_link,
       num_applicants_int AS num_applicants,
       work_mode,
-      NULL AS latitude,
-      NULL AS longitude
+      latitude,
+      longitude
     FROM "job-market-stream"
     WHERE time_posted_parsed IS NOT NULL
       AND time_posted_parsed >= %s
