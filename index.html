@@ -1876,8 +1876,9 @@
                     const maxRows = Math.max(...cols.map(c => c.names.length), 1);
                     const yScale = d3.scalePoint()
                         .domain(d3.range(maxRows))
-                        .range([60, height - 60])
-                        .padding(0.8);
+                        // add extra vertical spread to separate rows more clearly
+                        .range([70, height - 70])
+                        .padding(1.0);
 
                     const map = new Map();
                     cols.forEach(col => {
