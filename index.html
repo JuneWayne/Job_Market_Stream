@@ -741,6 +741,8 @@
                 <button data-dim="jobFunction" class="active">Function</button>
                 <button data-dim="industry">Industry</button>
                 <button data-dim="time">Time</button>
+                <button data-dim="workMode">Work Mode</button>
+                <button data-dim="applicants">Applicants</button>
                 <button data-dim="skills">Skills</button>
                 <button data-dim="degree">Degree</button>
             </div>
@@ -1582,10 +1584,14 @@
             const topIndustries = topK(nodes, d => d.industry, 8);
             const topSkills = topK(nodes.flatMap(d => d.skills.map(s => ({ skill: s }))), d => d.skill, 12);
             const degreeGroups = ["Bachelor's", "Master's", 'PhD', "Associate's", 'Enrolled', 'High School', 'Other'];
+            const workModeGroups = ['Remote', 'Hybrid', 'On-site', 'Unknown'];
+            const applicantGroups = ['Low', 'Medium', 'High', 'Unknown'];
 
             return {
                 jobFunction: { label: 'Job Function', groups: [...topFunctions].sort(d3.ascending).concat('Other'), topSet: new Set(topFunctions) },
                 industry: { label: 'Industry', groups: [...topIndustries].sort(d3.ascending).concat('Other'), topSet: new Set(topIndustries) },
+                workMode: { label: 'Work Mode', groups: workModeGroups },
+                applicants: { label: 'Applicants', groups: applicantGroups },
                 time: { label: 'Time Posted', groups: ['Last 24h', 'Past week', 'Past month', 'Older', 'Unknown'] },
                 degree: { label: 'Degree', groups: degreeGroups },
                 skills: { label: 'Skills', groups: [...topSkills, 'Other'], topSet: new Set(topSkills) }
@@ -1595,6 +1601,8 @@
         function groupValue(dim, d, dims) {
             if (dim === 'jobFunction') return dims.jobFunction.topSet.has(d.jobFunction) ? d.jobFunction : 'Other';
             if (dim === 'industry') return dims.industry.topSet.has(d.industry) ? d.industry : 'Other';
+            if (dim === 'workMode') return dims.workMode.groups.includes(d.workMode) ? d.workMode : 'Unknown';
+            if (dim === 'applicants') return dims.applicants.groups.includes(d.appBucket) ? d.appBucket : 'Unknown';
             if (dim === 'time') return d.timeBucket;
             if (dim === 'degree') return dims.degree.groups.includes(d.degreeLevel) ? d.degreeLevel : 'Other';
             if (dim === 'skills') {
@@ -1784,8 +1792,10 @@
                         coords: coordsByKey[locationKey] || null,
                         applicants,
                         appLevel: applicants == null ? 'unknown' : (applicants < 61 ? 'low' : (applicants < 101 ? 'medium' : 'high')),
+                        appBucket: applicants == null ? 'Unknown' : (applicants < 61 ? 'Low' : (applicants < 101 ? 'Medium' : 'High')),
                         jobFunction: firstToken(j['Job Function'] || j.job_function),
                         industry: firstToken(j['Industries'] || j.industry),
+                        workMode: firstToken(j.work_mode) || 'Unknown',
                         timeBucket: bucketTime(j.time_posted),
                         degreeLevel: degreeLevel(j.degree_qualifications || j.degree_requirement || ''),
                         skills: extractSkills(j),
