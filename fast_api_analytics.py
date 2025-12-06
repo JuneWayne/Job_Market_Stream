@@ -341,7 +341,7 @@ def _raw_beeswarm_query(limit: int, hours: int):
 @app.get("/api/beeswarm_jobs")
 def beeswarm_jobs(
     limit: int = Query(2000, ge=1, le=5000),
-    hours: int = Query(24, ge=1, le=24 * 7),
+    hours: int = Query(24, ge=1, le=24),
 ):
     return _raw_beeswarm_query(limit=limit, hours=hours)
 
@@ -350,7 +350,7 @@ def beeswarm_jobs(
 @app.get("/api/map_jobs")
 def map_jobs_alias(
     limit: int = Query(2000, ge=1, le=5000),
-    hours: int = Query(24, ge=1, le=24 * 7),
+    hours: int = Query(24, ge=1, le=24),
 ):
     return _raw_beeswarm_query(limit=limit, hours=hours)
 

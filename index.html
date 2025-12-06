@@ -1631,7 +1631,7 @@
         async function loadMapAndBeeswarm() {
             try {
                 // Fetch data from analytics API
-                const jobsRes = await fetch(`${ANALYTICS_API}/api/beeswarm_jobs?limit=2000&hours=168`);
+                const jobsRes = await fetch(`${ANALYTICS_API}/api/beeswarm_jobs?limit=2000&hours=24`);
 
                 if (!jobsRes.ok) {
                     throw new Error(`API returned ${jobsRes.status}: ${jobsRes.statusText}`);
