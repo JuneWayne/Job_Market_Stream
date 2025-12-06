@@ -1835,7 +1835,40 @@
             let activeChip = 'All';
 
             // Create centroids for grouping
-            function makeCentroids(groups) {
+            function makeCentroids(groups, dim) {
+                // For industry, pin "Tech - Giant" away from the dense cluster
+                if (dim === 'industry') {
+                    const preferredOrder = [
+                        'Tech - Giant',
+                        'Tech - Mid',
+                        'Tech - Startup',
+                        'Finance',
+                        'Retail',
+                        'Healthcare / Pharma',
+                        'Automotive / Manufacturing',
+                        'Energy / Utilities',
+                        'Other'
+                    ];
+
+                    const ordered = preferredOrder
+                        .filter(g => groups.includes(g))
+                        .concat(groups.filter(g => !preferredOrder.includes(g)));
+
+                    const n = ordered.length;
+                    const cols = width >= 700 ? 3 : (width >= 450 ? 2 : 1);
+                    const rows = Math.ceil(n / cols);
+                    const xPad = 50, yPad = 50;
+                    const xs = d3.scalePoint().domain(d3.range(cols)).range([xPad, width - xPad]).padding(0.6);
+                    const ys = d3.scalePoint().domain(d3.range(rows)).range([yPad, height - yPad]).padding(0.6);
+                    const map = new Map();
+                    ordered.forEach((name, i) => {
+                        const c = i % cols, r = Math.floor(i / cols);
+                        map.set(name, { x: xs(c), y: ys(r) });
+                    });
+                    return map;
+                }
+
+                // Default layout
                 const n = groups.length;
                 const cols = width >= 600 ? 3 : (width >= 400 ? 2 : 1);
                 const rows = Math.ceil(n / cols);
@@ -1850,7 +1883,7 @@
                 return map;
             }
 
-            let centroids = makeCentroids(dims[currentDim].groups);
+            let centroids = makeCentroids(dims[currentDim].groups, currentDim);
 
             // Scales
             const rScale = d3.scaleSqrt()
@@ -1988,7 +2021,7 @@
                 d3.select(this).classed('active', true);
 
                 currentDim = dim;
-                centroids = makeCentroids(dims[currentDim].groups);
+                centroids = makeCentroids(dims[currentDim].groups, currentDim);
                 renderGroupLabels();
                 activeChip = 'All';
                 renderChips();
@@ -2004,7 +2037,7 @@
                 const newRect = container.getBoundingClientRect();
                 const newWidth = newRect.width - margin.left - margin.right;
                 svg.attr('width', newWidth + margin.left + margin.right);
-                centroids = makeCentroids(dims[currentDim].groups);
+                centroids = makeCentroids(dims[currentDim].groups, currentDim);
                 renderGroupLabels();
                 sim.force('x', d3.forceX(d => centroids.get(groupValue(currentDim, d, dims))?.x || newWidth / 2).strength(0.12));
                 sim.alpha(0.3).restart();
