@@ -60,6 +60,8 @@ services:
       context: .
       dockerfile: Dockerfile
     network_mode: "host"
+    extra_hosts:
+      - "redpanda:127.0.0.1"
     depends_on:
       - redpanda
     environment:
