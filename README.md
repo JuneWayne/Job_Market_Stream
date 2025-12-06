@@ -55,21 +55,21 @@
   │              │     │              │     │              │     │              │
   │ scraper.py   │     │ producer.py  │     │ consumer.py  │     │parsed_jobs.csv
   └──────────────┘     └──────────────┘     └──────────────┘     └──────┬───────┘
-   Every 30 min         Host network         Parses & appends            │
-                        mode for stable                                  │
-                        LinkedIn access                                  ▼
-                                                                   ┌──────────────┐
+                                                                        │
+                                                                        │
+                                                                        ▼
+                                                                 ┌──────────────┐
   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     │  Supabase    │
-  │   GitHub     │     │   FastAPI    │     │  PostgreSQL  │◀────│  Ingestion   │
-  │   Pages      │◀────│    Server    │◀────│   Database   │     │              │
+  │   GitHub     │     │   FastAPI    │     │  PostgreSQL  │◀───│  Ingestion    │
+  │   Pages      │◀────│    Server    │◀───│   Database   │     │              │
   │              │     │              │     │              │     │supabase_*.py │
   │ index.html   │     │fast_api_*.py │     │  (Supabase)  │     └──────────────┘
-  └──────────────┘     └──────────────┘     └──────────────┘      Every 2 min
-        ▲                   Render                  ▲              Upserts with
-        │                  (Cloud)                  │              deduplication
+  └──────────────┘     └──────────────┘     └──────────────┘      
+        ▲                                           ▲              
+        │                                           │             
         │                                           │
         └───────────────────────────────────────────┘
-                    26 REST API Endpoints
+        dashboard powered by REST API Endpoints on Render
 ```
 
 ### Pipeline Flow Diagram
