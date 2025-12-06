@@ -119,7 +119,7 @@ flowchart LR
 
 ---
 
-## 🔧 Components Deep Dive
+## Components Deep Dive
 
 ### Data Collection Layer
 
@@ -195,7 +195,7 @@ services:
 
 ---
 
-## 📦 Docker Services
+## Docker Services
 
 All services are defined in `docker-compose.yaml`:
 
@@ -216,7 +216,7 @@ All services are defined in `docker-compose.yaml`:
 
 ---
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 Job_Market_Stream/
@@ -256,7 +256,7 @@ Job_Market_Stream/
 
 ---
 
-## 💻 Tech Stack
+## Tech Stack
 
 | Layer              | Technology                            |
 | ------------------ | ------------------------------------- |
@@ -291,7 +291,7 @@ The parser extracts **70+ technical skills** organized into categories:
 
 <p align="center">
   <a href="https://junewayne.github.io/Job_Market_Stream/">
-    <img src="https://img.shields.io/badge/🌐_Live_Dashboard-Visit_Now-success?style=for-the-badge" alt="Live Dashboard">
+    <img src="https://img.shields.io/badge/Live_Dashboard-Visit_Now-success?style=for-the-badge" alt="Live Dashboard">
   </a>
 </p>
 

@@ -1630,16 +1630,42 @@
         // Load map and beeswarm together
         async function loadMapAndBeeswarm() {
             try {
-                // Fetch all data
-                const [jobsRes, summaryRes, geoRes] = await Promise.all([
-                    fetch(`${JOBS_API}/api/jobs`),
-                    fetch(`${JOBS_API}/api/job_summaries`).catch(() => ({ ok: false })),
-                    fetch(`${JOBS_API}/api/geo_locations`)
-                ]);
-
+                // Fetch data from analytics API
+                const jobsRes = await fetch(`${ANALYTICS_API}/api/beeswarm_jobs?limit=2000&hours=168`);
                 const jobs = await jobsRes.json();
-                const summary = summaryRes.ok ? await summaryRes.json() : [];
-                const locations = geoRes.ok ? await geoRes.json() : [];
+
+                // No separate summary or geo endpoints needed - data is in jobs
+                const summary = [];
+                const locations = [];
+
+                // Build unique locations from jobs
+                const locationSet = new Map();
+                jobs.forEach(job => {
+                    const locKey = (job.location || 'Unknown').trim().toLowerCase();
+                    if (!locationSet.has(locKey)) {
+                        locationSet.set(locKey, {
+                            location: job.location || 'Unknown',
+                            latitude: job.latitude,
+                            longitude: job.longitude,
+                            jobCount: 0,
+                            totalApplicants: 0
+                        });
+                    }
+                    const loc = locationSet.get(locKey);
+                    loc.jobCount++;
+                    loc.totalApplicants += (job.num_applicants || 0);
+                });
+
+                // Convert to array and calculate averages
+                locationSet.forEach(loc => {
+                    loc.avgApplicants = loc.jobCount > 0 ? loc.totalApplicants / loc.jobCount : 0;
+                    locations.push(loc);
+                    summary.push({
+                        location: loc.location,
+                        number_of_jobs: loc.jobCount,
+                        average_applicants: loc.avgApplicants
+                    });
+                });
 
                 // Build location metadata
                 const jobData = {};
