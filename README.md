@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.11-blue?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/Kafka-Redpanda-red?logo=apachekafka&logoColor=white" alt="Kafka">
-  <img src="https://img.shields.io/badge/DuckDB-Analytics-yellow?logo=duckdb&logoColor=black" alt="DuckDB">
+  <img src="https://img.shields.io/badge/PostgreSQL-Supabase-336791?logo=postgresql&logoColor=white" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/D3.js-Visualization-orange?logo=d3dotjs&logoColor=white" alt="D3.js">
   <img src="https://img.shields.io/badge/Docker-Containerized-2496ED?logo=docker&logoColor=white" alt="Docker">
@@ -45,7 +45,8 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                              JOB MARKET STREAM PIPELINE                             │
+│                        JOB MARKET STREAM PIPELINE (v2.0)                            │
+│                      Real-time Streaming to PostgreSQL/Supabase                     │
 └─────────────────────────────────────────────────────────────────────────────────────┘
 
   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
@@ -54,22 +55,21 @@
   │              │     │              │     │              │     │              │
   │ scraper.py   │     │ producer.py  │     │ consumer.py  │     │parsed_jobs.csv
   └──────────────┘     └──────────────┘     └──────────────┘     └──────┬───────┘
-                                                                        │
-                                                                        ▼
-  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-  │   GitHub     │     │   FastAPI    │     │   DuckDB     │     │   DuckDB     │
-  │   Pages      │◀────│    Server    │◀────│   Database   │◀────│  Ingestion   │
-  │              │     │              │     │              │     │              │
-  │ index.html   │     │fast_api_*.py │     │ jobs.duckdb  │     │duckdb_*.py   │
-  └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
-        ▲                                          │
-        │                                          ▼
-        │                                   ┌──────────────┐
-        │                                   │     Geo      │
-        │                                   │   Encoding   │
-        │                                   │              │
-        │                                   │geo_encode.py │
-        └───────────────────────────────────┴──────────────┘
+   Every 30 min         Host network         Parses & appends            │
+                        mode for stable                                  │
+                        LinkedIn access                                  ▼
+                                                                   ┌──────────────┐
+  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     │  Supabase    │
+  │   GitHub     │     │   FastAPI    │     │  PostgreSQL  │◀────│  Ingestion   │
+  │   Pages      │◀────│    Server    │◀────│   Database   │     │              │
+  │              │     │              │     │              │     │supabase_*.py │
+  │ index.html   │     │fast_api_*.py │     │  (Supabase)  │     └──────────────┘
+  └──────────────┘     └──────────────┘     └──────────────┘      Every 2 min
+        ▲                   Render                  ▲              Upserts with
+        │                  (Cloud)                  │              deduplication
+        │                                           │
+        └───────────────────────────────────────────┘
+                    26 REST API Endpoints
 ```
 
 ### Pipeline Flow Diagram
@@ -81,33 +81,38 @@ flowchart LR
     end
     
     subgraph Streaming["Message Streaming"]
-        B --> C[producer.py]
+        B --> C[producer.py\nHost Network Mode]
         C --> D[(Redpanda\nKafka Broker)]
-        D --> E[consumer.py]
+        D --> E[consumer.py\nConsumer Group]
     end
     
     subgraph Processing["Data Processing"]
         E --> F[job_parser.py\nSkills & Degree Extraction]
-        F --> G[save_csv.py]
+        F --> G[Append to CSV]
         G --> H[(parsed_jobs.csv)]
     end
     
-    subgraph Analytics["Analytics Layer"]
-        H --> I[duckdb_ingestion.py]
-        I --> J[(DuckDB\njobs.duckdb)]
-        J --> K[geo_encode.py]
+    subgraph Database["Cloud Database"]
+        H --> I[supabase_ingestion.py\nFile Change Detection]
+        I --> J[(PostgreSQL\nSupabase Cloud)]
+        J --> K[Automated Upserts\nEvery 2 Minutes]
         K --> J
-        J --> L[fast_api_analytics.py]
+    end
+    
+    subgraph Analytics["Analytics API"]
+        J --> L[fast_api_analytics.py\n26 Endpoints]
+        L --> M[CORS Enabled\nRender Deployment]
     end
     
     subgraph Frontend["Dashboard"]
-        L --> M[index.html\nD3.js + Leaflet]
-        M --> N[GitHub Pages]
+        M --> N[index.html\nD3.js + Leaflet]
+        N --> O[GitHub Pages]
     end
     
     style Scraping fill:#e1f5fe
     style Streaming fill:#fff3e0
     style Processing fill:#f3e5f5
+    style Database fill:#c8e6c9
     style Analytics fill:#e8f5e9
     style Frontend fill:#fce4ec
 ```
@@ -132,18 +137,18 @@ flowchart LR
 
 ### Data Transformation Layer
 
-| Component            | File                  | Description                                                                                                                                                                                                                                                                                    |
-| -------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Job Parser**       | `job_parser.py`       | **NLP-powered extraction engine** that identifies: <br>• 70+ technical skills (Python, SQL, TensorFlow, etc.)<br>• Job functions (Data Science, Analytics, Engineering)<br>• Degree requirements (PhD, Master's, Bachelor's)<br>• Work mode (Remote, Hybrid, On-site)<br>• Time posted parsing |
-| **CSV Writer**       | `save_csv.py`         | Thread-safe append-only CSV writer with deduplication.                                                                                                                                                                                                                                         |
-| **DuckDB Ingestion** | `duckdb_ingestion.py` | Loads staging CSV into DuckDB analytics database. Performs deduplication, timestamp parsing, and maintains sorted views. Runs every 30 minutes.                                                                                                                                                |
-| **Geo Encoder**      | `geo_encode.py`       | Geocodes job locations using OpenStreetMap Nominatim API. Creates `geo_locations` table with lat/lon coordinates for map visualization.                                                                                                                                                        |
+| Component              | File                    | Description                                                                                                                                                                                                                                                                                    |
+| ---------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Job Parser**         | `job_parser.py`         | **NLP-powered extraction engine** that identifies: <br>• 70+ technical skills (Python, SQL, TensorFlow, etc.)<br>• Job functions (Data Science, Analytics, Engineering)<br>• Degree requirements (PhD, Master's, Bachelor's)<br>• Work mode (Remote, Hybrid, On-site)<br>• Time posted parsing |
+| **CSV Writer**         | `save_csv.py`           | Thread-safe append-only CSV writer with deduplication.                                                                                                                                                                                                                                         |
+| **Supabase Ingestion** | `supabase_ingestion.py` | Syncs staging CSV to Supabase PostgreSQL cloud database. Monitors file changes via mtime (every 2 minutes), performs in-memory deduplication by `job_id`, and executes batch upserts with conflict resolution (`COALESCE` preserves non-null values).                                          |
+| **Geo Encoder**        | `geo_encode.py`         | Geocodes job locations using OpenStreetMap Nominatim API. Creates `geo_locations` table with lat/lon coordinates for map visualization.                                                                                                                                                        |
 
 ### Analytics API Layer
 
-| Component          | File                    | Description                                                                                                                                                                                           |
-| ------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **FastAPI Server** | `fast_api_analytics.py` | RESTful API serving 15 analytics endpoints from DuckDB. Handles CORS, caching, and error handling. Deployed via Render Cloud Webservices platform (Free version, hence API may spin down when unused) |
+| Component          | File                    | Description                                                                                                                                                                                                                   |
+| ------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **FastAPI Server** | `fast_api_analytics.py` | RESTful API serving 26 analytics endpoints from Supabase PostgreSQL. Handles CORS, Decimal conversion, and error handling. Deployed via Render Cloud Webservices platform (Free version, hence API may spin down when unused) |
 
 **API Endpoints:**
 
@@ -159,6 +164,7 @@ flowchart LR
 | `GET /api/map_jobs`         | Geocoded jobs for map                  |
 | `GET /api/skills_network`   | Skill co-occurrence graph              |
 | `GET /api/pulse_metrics`    | Real-time stream health                |
+| ... and 16 more endpoints   | See code for full list                 |
 
 ### Data Visualization & Insights
 
@@ -189,60 +195,34 @@ services:
 
 ---
 
-## Quick Start
+## 📦 Docker Services
 
-### Prerequisites
-- Docker & Docker Compose
-- Python 3.11+ (for local development)
+All services are defined in `docker-compose.yaml`:
 
-### Run the Pipeline
+| Service             | Purpose          | Port | Notes                                                                    |
+| ------------------- | ---------------- | ---- | ------------------------------------------------------------------------ |
+| `redpanda`          | Kafka broker     | 9092 | Handles message streaming between producer/consumer                      |
+| `redpanda-console`  | Redpanda UI      | 8080 | Monitor topics, messages, consumer groups                                |
+| `producer`          | LinkedIn scraper | -    | Host network mode with `extra_hosts` for Kafka DNS resolution            |
+| `consumer`          | Stream processor | -    | Consumes from `job_postings` topic, appends to CSV                       |
+| `supabase_ingestor` | Database sync    | -    | Watches CSV file (mtime), upserts to Supabase PostgreSQL every 2 minutes |
+| `duckdb_refresher`  | Legacy service   | -    | **Deprecated**: Old DuckDB pipeline (kept for compatibility)             |
 
-```bash
-# Clone the repository
-git clone https://github.com/JuneWayne/Job_Market_Stream.git
-cd Job_Market_Stream
-
-# Start all services
-docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Access Redpanda Console
-open http://localhost:8080
-
-# Create a local crontab for auto github push every 2 minutes
-# Since the Docker Services here does not implement automated git push to GitHub for any new files, 
-# you must set up a cron job on your host machine like below:
-*/2 * * * * cd /home/xxxx/Job_Market_Stream && ./auto_git_push_host.sh >> /home/xxxx/auto_git_push.log 2>&1
-```
-
-### Local Development
-
-```bash
-# Create virtual environment
-python -m venv job-env
-source job-env/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run individual components
-python producer.py      # Start scraping
-python consumer.py      # Start consuming
-python duckdb_ingestion.py  # Refresh DuckDB
-python -m uvicorn fast_api_analytics:app --reload  # Start API
-```
+**Environment Variables:**
+- `KAFKA_SERVER`: Bootstrap servers for Kafka connection
+- `SCRAPER_INTERVAL_HOURS`: Scraping frequency (default: 0.5)
+- `SUPABASE_INGEST_INTERVAL_SECONDS`: Database sync frequency (default: 120)
+- `SUPABASE_DB_*`: Connection credentials for Supabase PostgreSQL
 
 ---
 
-## Project Structure
+## 🏗️ Project Structure
 
 ```
 Job_Market_Stream/
 ├── Scraping
-│   ├── scraper.py          # LinkedIn jobs scraper
-│   └── producer.py         # Kafka message producer
+│   ├── scraper.py          # LinkedIn jobs scraper (macOS Chrome UA)
+│   └── producer.py         # Kafka message producer (host network mode)
 │
 ├── Streaming
 │   ├── consumer.py         # Kafka message consumer
@@ -251,40 +231,39 @@ Job_Market_Stream/
 ├── Data Processing
 │   ├── job_parser.py       # NLP skill/function extraction
 │   ├── save_csv.py         # CSV persistence layer
-│   ├── duckdb_ingestion.py # DuckDB ETL pipeline
+│   ├── supabase_ingestion.py # Supabase PostgreSQL ETL pipeline
 │   └── geo_encode.py       # Location geocoding
 │
 ├── Data Analytics
-│   └── fast_api_analytics.py  # REST API server
+│   └── fast_api_analytics.py  # REST API server (26 endpoints)
 │
 ├── Frontend
 │   ├── index.html          # Dashboard (D3.js + Leaflet)
 │   └── static/             # Static assets
 │
 ├── Data
-│   └── data/
-│       ├── parsed_jobs.csv # Staging data
-│       └── jobs.duckdb     # Analytics database
+│   ├── parsed_jobs.csv     # Staging CSV file
+│   └── jobs.duckdb         # Legacy local database (deprecated)
 │
-├── Infrastructure
-│   ├── Dockerfile
-│   ├── docker-compose.yaml
-│   └── requirements.txt
+├── Docker
+│   ├── Dockerfile          # Container image definition
+│   └── docker-compose.yaml # Orchestration config (6 services)
 │
-└── Documentation
-    └── README.md
+└── Config
+    ├── requirements.txt    # Python dependencies
+    └── config.py           # Environment variables
 ```
 
 ---
 
-## Tech Stack
+## 💻 Tech Stack
 
 | Layer              | Technology                            |
 | ------------------ | ------------------------------------- |
 | **Scraping**       | Python, BeautifulSoup, Requests       |
 | **Streaming**      | Apache Kafka (Redpanda), kafka-python |
-| **Storage**        | DuckDB, CSV (staging)                 |
-| **API**            | FastAPI, Uvicorn                      |
+| **Storage**        | Supabase PostgreSQL, CSV (staging)    |
+| **API**            | FastAPI, Uvicorn, psycopg2            |
 | **Visualization**  | D3.js, Leaflet, MarkerCluster         |
 | **Geocoding**      | OpenStreetMap Nominatim               |
 | **Infrastructure** | Docker, Docker Compose                |
