@@ -368,6 +368,68 @@ def extract_job_function(text, title):
 
     return "Other"
 
+
+def classify_company_industry(company_name: str) -> str:
+    """Classify a company into a coarse industry bucket based on its name."""
+    name = (company_name or "").lower()
+    # canonical keyword lists
+    tech_giants = [
+        "google", "alphabet", "microsoft", "meta", "facebook", "amazon", "apple",
+        "netflix", "nvidia", "adobe", "salesforce", "oracle", "ibm", "tesla"
+    ]
+    tech_mid = [
+        "snowflake", "databricks", "palantir", "stripe", "block", "square", "twilio", "cloudflare",
+        "shopify", "atlassian", "zendesk", "mongodb", "datadog", "okta", "servicenow",
+        "airbnb", "uber", "lyft"
+    ]
+    tech_startup_hints = ["labs", "ventures", "ai", "analytics", "systems", "technologies", "solutions"]
+
+    investment_banks = [
+        "goldman", "morgan stanley", "jp morgan", "j.p. morgan", "bank of america", "bofa", "barclays",
+        "credit suisse", "ubs", "deutsche bank", "jefferies", "evercore", "piper sandler", "lazard",
+        "centerview", "moelis", "guggenheim", "rbc capital", "nomura", "mizuho", "hsbc", "citigroup",
+        "citi", "bnpp", "bnp paribas", "wells fargo securities"
+    ]
+    finance = [
+        "jpmorgan", "chase", "capital one", "american express", "visa", "mastercard", "discover",
+        "blackrock", "fidelity", "two sigma", "citadel", "point72", "aig", "state street",
+        "pnc", "ally", "regions bank", "us bank", "charles schwab"
+    ]
+    retail = [
+        "walmart", "target", "costco", "home depot", "lowe's", "lowes", "best buy", "kroger",
+        "walgreens", "cvs", "tesco", "aldi", "lidl", "ikea", "macy", "kohls", "nordstrom", "wayfair"
+    ]
+    healthcare = [
+        "johnson", "pfizer", "merck", "abbvie", "amgen", "novartis", "roche", "eli lilly",
+        "bristol myers", "gsk", "sanofi", "astrazeneca", "unitedhealth", "cigna", "anthem", "elevance"
+    ]
+    automotive = ["ford", "gm", "general motors", "toyota", "honda", "bmw", "mercedes", "volkswagen", "stellantis"]
+    energy = ["chevron", "exxon", "exxonmobil", "shell", "bp", "total", "conocophillips", "duke energy"]
+
+    def contains(keywords):
+        return any(k in name for k in keywords)
+
+    if contains(tech_giants):
+        return "Tech - Giant"
+    if contains(tech_mid):
+        return "Tech - Mid"
+    if contains(investment_banks):
+        return "Investment Banking"
+    if contains(finance):
+        return "Finance"
+    if contains(retail):
+        return "Retail"
+    if contains(healthcare):
+        return "Healthcare / Pharma"
+    if contains(automotive):
+        return "Automotive / Manufacturing"
+    if contains(energy):
+        return "Energy / Utilities"
+    # Startup-ish heuristics (only if nothing else matched)
+    if name and contains(tech_startup_hints):
+        return "Tech - Startup"
+    return "Other"
+
 def parse_time_posted(time_posted):
     txt = time_posted.strip().lower()
     match = re.search(r"(\d+)\s+(minute|hour|day|week|month|year)s?\s+ago", txt)
@@ -473,6 +535,7 @@ def parse_job_postings(df_jobs, geocode: bool = False):
     job["skills"] = ", ".join(skill_list) if skill_list else ""
     job["work_mode"] = extract_work_mode(description, location)
     job["job_function"] = extract_job_function(description, title)
+    job["industry"] = classify_company_industry(job.get("company_name"))
     posting_dt = parse_time_posted(time_posted)
     job["time_posted_parsed"] = posting_dt.isoformat() if posting_dt else None
     

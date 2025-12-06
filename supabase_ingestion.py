@@ -48,6 +48,7 @@ def ensure_table(conn: psycopg2.extensions.connection) -> None:
         job_title TEXT,
         job_description TEXT,
         company_name TEXT,
+        industry TEXT,
         location TEXT,
         latitude DOUBLE PRECISION,
         longitude DOUBLE PRECISION,
@@ -81,6 +82,13 @@ def ensure_table(conn: psycopg2.extensions.connection) -> None:
                     WHERE table_name = 'job-market-stream' AND column_name = 'longitude'
                 ) THEN
                     ALTER TABLE {TABLE_NAME} ADD COLUMN longitude DOUBLE PRECISION;
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'job-market-stream' AND column_name = 'industry'
+                ) THEN
+                    ALTER TABLE {TABLE_NAME} ADD COLUMN industry TEXT;
                 END IF;
             END $$;
         """)
@@ -155,6 +163,7 @@ def load_records() -> List[Tuple[Any, ...]]:
             _clean_str(row.get("job_title")),
             _clean_str(row.get("job_description")),
             _clean_str(row.get("company_name")),
+            _clean_str(row.get("industry")),
             _clean_str(row.get("location")),
             _clean_float(row.get("latitude")),
             _clean_float(row.get("longitude")),
@@ -187,7 +196,7 @@ def upsert_records(
 
     insert_sql = f"""
     INSERT INTO {TABLE_NAME} (
-        job_id, job_title, job_description, company_name, location, latitude, longitude,
+        job_id, job_title, job_description, company_name, industry, location, latitude, longitude,
         job_function, skills, degree_requirement, time_posted_parsed, application_link,
         num_applicants_int, work_mode, scraped_at
     ) VALUES %s
@@ -195,6 +204,7 @@ def upsert_records(
         job_title = COALESCE(EXCLUDED.job_title, {TABLE_NAME}.job_title),
         job_description = COALESCE(EXCLUDED.job_description, {TABLE_NAME}.job_description),
         company_name = COALESCE(EXCLUDED.company_name, {TABLE_NAME}.company_name),
+        industry = COALESCE(EXCLUDED.industry, {TABLE_NAME}.industry),
         location = COALESCE(EXCLUDED.location, {TABLE_NAME}.location),
         latitude = COALESCE(EXCLUDED.latitude, {TABLE_NAME}.latitude),
         longitude = COALESCE(EXCLUDED.longitude, {TABLE_NAME}.longitude),

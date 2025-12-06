@@ -141,6 +141,65 @@ def df_to_records(df) -> List[Dict[str, Any]]:
     return records
 
 
+def classify_company_industry(company_name: Any) -> str:
+    """Classify a company into broad industry buckets based on name keywords."""
+    name = str(company_name or "").lower()
+
+    tech_giants = {
+        "google", "alphabet", "microsoft", "meta", "facebook", "amazon", "apple",
+        "netflix", "nvidia", "adobe", "salesforce", "oracle", "ibm", "tesla"
+    }
+    tech_mid = {
+        "snowflake", "databricks", "palantir", "stripe", "block", "square", "twilio", "cloudflare",
+        "shopify", "atlassian", "zendesk", "mongodb", "datadog", "okta", "servicenow",
+        "airbnb", "uber", "lyft"
+    }
+    investment_banks = {
+        "goldman", "morgan stanley", "jp morgan", "j.p. morgan", "bank of america", "bofa", "barclays",
+        "credit suisse", "ubs", "deutsche bank", "jefferies", "evercore", "piper sandler", "lazard",
+        "centerview", "moelis", "guggenheim", "rbc capital", "nomura", "mizuho", "hsbc", "citigroup",
+        "citi", "bnpp", "bnp paribas", "wells fargo securities"
+    }
+    finance = {
+        "jpmorgan", "chase", "capital one", "american express", "visa", "mastercard", "discover",
+        "blackrock", "fidelity", "two sigma", "citadel", "point72", "aig", "state street",
+        "pnc", "ally", "regions bank", "us bank", "charles schwab"
+    }
+    retail = {
+        "walmart", "target", "costco", "home depot", "lowe's", "lowes", "best buy", "kroger",
+        "walgreens", "cvs", "tesco", "aldi", "lidl", "ikea", "macy", "kohls", "nordstrom", "wayfair"
+    }
+    healthcare = {
+        "johnson", "pfizer", "merck", "abbvie", "amgen", "novartis", "roche", "eli lilly",
+        "bristol myers", "gsk", "sanofi", "astrazeneca", "unitedhealth", "cigna", "anthem", "elevance"
+    }
+    automotive = {"ford", "gm", "general motors", "toyota", "honda", "bmw", "mercedes", "volkswagen", "stellantis"}
+    energy = {"chevron", "exxon", "exxonmobil", "shell", "bp", "total", "conocophillips", "duke energy"}
+
+    def contains(keywords: set[str]) -> bool:
+        return any(k in name for k in keywords)
+
+    if contains(tech_giants):
+        return "Tech - Giant"
+    if contains(tech_mid):
+        return "Tech - Mid"
+    if contains(investment_banks):
+        return "Investment Banking"
+    if contains(finance):
+        return "Finance"
+    if contains(retail):
+        return "Retail"
+    if contains(healthcare):
+        return "Healthcare / Pharma"
+    if contains(automotive):
+        return "Automotive / Manufacturing"
+    if contains(energy):
+        return "Energy / Utilities"
+    if name and any(hint in name for hint in ["labs", "ventures", "ai", "analytics", "systems", "technologies", "solutions"]):
+        return "Tech - Startup"
+    return "Other"
+
+
 def to_float(value: Any, default: float = 0.0) -> float:
     """Convert database numeric values (including Decimal) to float safely."""
     if value is None:
@@ -311,9 +370,9 @@ def _raw_beeswarm_query(limit: int, hours: int):
       job_title,
       job_description AS summary,
       company_name,
+            COALESCE(industry, '') AS "Industries",
       location,
       job_function AS "Job Function",
-      '' AS "Industries",
       skills AS skills_desired,
       degree_requirement AS degree_qualifications,
       time_posted_parsed,
@@ -334,7 +393,17 @@ def _raw_beeswarm_query(limit: int, hours: int):
     df["time_posted"] = df["time_posted_parsed"].apply(friendly_age)
     df["time_posted_parsed"] = df["time_posted_parsed"].astype(str)
 
-    return df_to_records(df)
+    records = df_to_records(df)
+
+    # Ensure industry is populated even if source data is blank
+    for rec in records:
+        company = rec.get("company_name")
+        inferred = classify_company_industry(company)
+        existing = rec.get("Industries") or rec.get("industry")
+        rec["Industries"] = existing or inferred
+        rec["industry"] = rec["Industries"]
+
+    return records
 
 
 # jobs for beeswarm chart

@@ -740,7 +740,6 @@
             <div class="segmented" id="dimension-selector">
                 <button data-dim="jobFunction" class="active">Function</button>
                 <button data-dim="industry">Industry</button>
-                <button data-dim="companies">Companies</button>
                 <button data-dim="time">Time</button>
                 <button data-dim="skills">Skills</button>
                 <button data-dim="degree">Degree</button>
@@ -1563,26 +1562,6 @@
             return 'Unknown';
         }
 
-        // Company grouping
-        const COMPANY_GROUPS = {
-            'Tech Giants': ['google', 'alphabet', 'meta', 'facebook', 'amazon', 'apple', 'microsoft', 'netflix', 'nvidia', 'adobe', 'salesforce', 'oracle', 'ibm', 'uber', 'airbnb', 'palantir', 'snowflake', 'databricks', 'stripe'],
-            'Consulting': ['mckinsey', 'boston consulting', 'bcg', 'bain', 'deloitte', 'pwc', 'kpmg', 'ey', 'ernst young', 'accenture', 'booz allen'],
-            'Finance': ['jpmorgan', 'goldman sachs', 'morgan stanley', 'bank of america', 'citigroup', 'wells fargo', 'blackrock', 'citadel', 'two sigma', 'capital one', 'american express'],
-            'Healthcare': ['johnson', 'pfizer', 'merck', 'abbvie', 'amgen', 'novartis', 'roche', 'bristol myers', 'eli lilly'],
-            'Retail': ['walmart', 'target', 'costco', 'ebay', 'wayfair', 'best buy', 'home depot']
-        };
-        const COMPANY_PRIORITY = Object.keys(COMPANY_GROUPS);
-
-        function companyGroup(name = '') {
-            const s = name.toLowerCase().replace(/[^\w\s]/g, ' ');
-            for (const cat of COMPANY_PRIORITY) {
-                for (const term of COMPANY_GROUPS[cat]) {
-                    if (s.includes(term)) return cat;
-                }
-            }
-            return 'Other';
-        }
-
         // Extract skills from job
         function extractSkills(job) {
             const text = job.skills_desired || job.skills || '';
@@ -1607,7 +1586,6 @@
             return {
                 jobFunction: { label: 'Job Function', groups: [...topFunctions].sort(d3.ascending).concat('Other'), topSet: new Set(topFunctions) },
                 industry: { label: 'Industry', groups: [...topIndustries].sort(d3.ascending).concat('Other'), topSet: new Set(topIndustries) },
-                companies: { label: 'Companies', groups: [...COMPANY_PRIORITY, 'Other'] },
                 time: { label: 'Time Posted', groups: ['Last 24h', 'Past week', 'Past month', 'Older', 'Unknown'] },
                 degree: { label: 'Degree', groups: degreeGroups },
                 skills: { label: 'Skills', groups: [...topSkills, 'Other'], topSet: new Set(topSkills) }
@@ -1617,7 +1595,6 @@
         function groupValue(dim, d, dims) {
             if (dim === 'jobFunction') return dims.jobFunction.topSet.has(d.jobFunction) ? d.jobFunction : 'Other';
             if (dim === 'industry') return dims.industry.topSet.has(d.industry) ? d.industry : 'Other';
-            if (dim === 'companies') return d.companyBucket || 'Other';
             if (dim === 'time') return d.timeBucket;
             if (dim === 'degree') return dims.degree.groups.includes(d.degreeLevel) ? d.degreeLevel : 'Other';
             if (dim === 'skills') {
@@ -1812,7 +1789,6 @@
                         timeBucket: bucketTime(j.time_posted),
                         degreeLevel: degreeLevel(j.degree_qualifications || j.degree_requirement || ''),
                         skills: extractSkills(j),
-                        companyBucket: companyGroup(j.company_name || ''),
                         jobLink: j.job_link && j.job_link !== 'N/A' ? j.job_link : null
                     };
                 });

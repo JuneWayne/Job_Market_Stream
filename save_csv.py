@@ -8,6 +8,7 @@ FIELDNAMES = [
     "job_title",
     "job_description",
     "company_name",
+    "industry",
     "location",
     "latitude",
     "longitude",
