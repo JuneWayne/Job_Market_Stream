@@ -34,13 +34,20 @@ def get_consumer():
 def run_consumer():
     consumer = get_consumer()
     logger.info("Consumer started, listening to topic '%s'", KAFKA_TOPIC)
+    
+    # Enable geocoding via environment variable (default: disabled for performance)
+    enable_geocoding = os.getenv("ENABLE_GEOCODING", "false").lower() == "true"
+    if enable_geocoding:
+        logger.info("Geocoding is ENABLED - locations will be geocoded (slower processing)")
+    else:
+        logger.info("Geocoding is DISABLED - set ENABLE_GEOCODING=true to enable")
 
     try:
         for msg in consumer:
             raw_job = msg.value  
 
             try:
-                parsed = parse_job_postings(raw_job)
+                parsed = parse_job_postings(raw_job, geocode=enable_geocoding)
             except Exception as e:
                 logger.exception("Failed to parse job: %s", e)
                 continue

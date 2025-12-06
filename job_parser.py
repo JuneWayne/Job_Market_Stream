@@ -1,9 +1,15 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+import time
+import requests
 
-# A script to parse raw job postings into structured data, extract skills and job functions from descriptions 
+# A script to parse raw job postings into structured data, extract skills and job functions from descriptions
+
+# Geocoding cache to avoid redundant API calls
+_geocode_cache: Dict[str, Tuple[Optional[float], Optional[float]]] = {}
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search" 
 
 degree_patterns = [
     ("PhD",      r"\b(ph\.?d\.?|doctorate|doctoral)\b"),
@@ -389,7 +395,71 @@ def parse_time_posted(time_posted):
 
     return now_et - delta
 
-def parse_job_postings(df_jobs):
+def geocode_location(location: str, use_cache: bool = True) -> Tuple[Optional[float], Optional[float]]:
+    """
+    Geocode a location string to latitude/longitude using Nominatim API.
+    
+    Args:
+        location: Location string to geocode
+        use_cache: Whether to use cached results (default True)
+    
+    Returns:
+        Tuple of (latitude, longitude) or (None, None) if not found
+    """
+    if not location or location.strip() == "":
+        return None, None
+    
+    # Normalize location for cache lookup
+    location_key = location.strip().lower()
+    
+    # Check cache first
+    if use_cache and location_key in _geocode_cache:
+        return _geocode_cache[location_key]
+    
+    # Make API request
+    params = {
+        "q": f"{location}, United States",
+        "format": "json",
+        "limit": 1,
+    }
+    
+    try:
+        resp = requests.get(
+            NOMINATIM_URL,
+            params=params,
+            headers={"User-Agent": "JobMarketStreamBot/1.0 (Educational Project)"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        
+        if data and len(data) > 0:
+            lat = float(data[0]["lat"])
+            lon = float(data[0]["lon"])
+            _geocode_cache[location_key] = (lat, lon)
+            
+            # Rate limiting to respect Nominatim usage policy (1 req/sec)
+            time.sleep(1.1)
+            
+            return lat, lon
+    except Exception as e:
+        print(f"[geocode] Error geocoding '{location}': {e}")
+    
+    # Cache negative results too to avoid re-trying
+    _geocode_cache[location_key] = (None, None)
+    return None, None
+
+def parse_job_postings(df_jobs, geocode: bool = False):
+    """
+    Parse job posting data and extract structured information.
+    
+    Args:
+        df_jobs: Job data dictionary
+        geocode: Whether to geocode the location (default False, set True to enable)
+    
+    Returns:
+        Parsed job dictionary with extracted fields
+    """
     job = dict(df_jobs)
 
     description = job.get("job_description", "") or ""
@@ -405,6 +475,15 @@ def parse_job_postings(df_jobs):
     job["job_function"] = extract_job_function(description, title)
     posting_dt = parse_time_posted(time_posted)
     job["time_posted_parsed"] = posting_dt.isoformat() if posting_dt else None
+    
+    # Geocode location if requested
+    if geocode and location:
+        lat, lon = geocode_location(location)
+        job["latitude"] = lat
+        job["longitude"] = lon
+    else:
+        job["latitude"] = None
+        job["longitude"] = None
     
     # Record when this job was actually scraped/processed
     job["scraped_at"] = datetime.now(ZoneInfo("America/New_York")).isoformat()

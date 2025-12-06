@@ -50,6 +50,7 @@ services:
     environment:
       - KAFKA_SERVER=redpanda:9092
       - KAFKA_TOPIC=job_postings
+      - ENABLE_GEOCODING=true
     volumes:
       - ./data:/app/data
     restart: unless-stopped
