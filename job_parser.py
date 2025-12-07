@@ -259,6 +259,59 @@ def parse_num_applicants(string):
     except ValueError:
         return None
 
+def extract_visa_sponsorship(text):
+    """
+    Determine if a job sponsors visas for international students.
+    Returns: "Yes", "No", or "Unclear"
+    """
+    txt = text.lower()
+    
+    # Strong positive indicators
+    positive_patterns = [
+        r"visa sponsor",
+        r"sponsorship available",
+        r"will sponsor",
+        r"can sponsor",
+        r"sponsors? (h-?1b|opt|cpt)",
+        r"(h-?1b|opt|cpt) sponsor",
+        r"international (students?|candidates?) (welcome|encouraged)",
+        r"open to international",
+        r"eligible for visa",
+        r"f-?1.*opt.*sponsor",
+        r"stem opt",
+    ]
+    
+    # Strong negative indicators
+    negative_patterns = [
+        r"no visa sponsor",
+        r"cannot sponsor",
+        r"will not sponsor",
+        r"does not sponsor",
+        r"unable to sponsor",
+        r"not eligible for.*sponsor",
+        r"us citizen.*required",
+        r"must be (a )?us citizen",
+        r"citizenship required",
+        r"security clearance required",
+        r"active (secret|top.?secret) clearance",
+        r"must possess.*clearance",
+        r"us persons? only",
+        r"itar",
+    ]
+    
+    # Check for positive signals
+    for pattern in positive_patterns:
+        if re.search(pattern, txt, flags=re.IGNORECASE):
+            return "Yes"
+    
+    # Check for negative signals
+    for pattern in negative_patterns:
+        if re.search(pattern, txt, flags=re.IGNORECASE):
+            return "No"
+    
+    # Default to unclear if no explicit mention
+    return "Unclear"
+
 def extract_job_function(text, title):
     parts = []
     parts.append(title.lower())
@@ -375,12 +428,34 @@ def classify_company_industry(company_name: str) -> str:
     # canonical keyword lists
     tech_giants = [
         "google", "alphabet", "microsoft", "meta", "facebook", "amazon", "apple",
-        "netflix", "nvidia", "adobe", "salesforce", "oracle", "ibm", "tesla"
+        "netflix", "nvidia", "adobe", "salesforce", "oracle", "ibm", "tesla", "cisco",
+        "intel", "amd", "qualcomm", "broadcom", "texas instruments", "micron",
+        "dell", "hp", "hewlett packard", "lenovo", "vmware", "red hat", "sap",
+        "intuit", "autodesk", "synopsys", "cadence", "ansys", "siemens", "ge digital",
+        "sony", "samsung", "tencent", "alibaba", "baidu", "bytedance", "tiktok",
+        "x", "twitter", "spacex", "paypal", "ebay", "booking", "expedia"
     ]
     tech_mid = [
         "snowflake", "databricks", "palantir", "stripe", "block", "square", "twilio", "cloudflare",
         "shopify", "atlassian", "zendesk", "mongodb", "datadog", "okta", "servicenow",
-        "airbnb", "uber", "lyft"
+        "airbnb", "uber", "lyft", "doordash", "instacart", "grubhub", "snap", "snapchat",
+        "pinterest", "reddit", "discord", "roblox", "unity", "epic games", "riot games",
+        "zoom", "slack", "asana", "notion", "figma", "canva", "airtable", "hubspot",
+        "splunk", "palo alto", "crowdstrike", "fortinet", "zscaler", "cloudflare",
+        "confluent", "elastic", "hashicorp", "gitlab", "github", "bitbucket",
+        "docusign", "dropbox", "box", "workday", "coupa", "veeva", "appian",
+        "twitch", "spotify", "soundcloud", "duolingo", "coursera", "udemy", "chegg",
+        "robinhood", "coinbase", "kraken", "binance", "plaid", "affirm", "klarna",
+        "chime", "nubank", "revolut", "n26", "monzo", "betterment", "wealthfront",
+        "etsy", "poshmark", "mercari", "offerup", "letgo", "zillow", "redfin",
+        "opendoor", "compass", "trulia", "apartments.com", "realtor.com",
+        "peloton", "strava", "noom", "calm", "headspace", "whoop", "oura",
+        "23andme", "ancestry", "color genomics", "tempus", "flatiron health",
+        "grammarly", "monday.com", "clickup", "smartsheet", "amplitude", "mixpanel",
+        "segment", "mparticle", "braze", "iterable", "sendgrid", "mailchimp",
+        "zapier", "make", "integromat", "fivetran", "airbyte", "census", "hightouch",
+        "retool", "bubble", "webflow", "wix", "squarespace", "wordpress vip",
+        "vercel", "netlify", "render", "fly.io", "railway", "heroku", "planetscale"
     ]
     tech_startup_hints = ["labs", "ventures", "ai", "analytics", "systems", "technologies", "solutions"]
 
@@ -388,23 +463,45 @@ def classify_company_industry(company_name: str) -> str:
         "goldman", "morgan stanley", "jp morgan", "j.p. morgan", "bank of america", "bofa", "barclays",
         "credit suisse", "ubs", "deutsche bank", "jefferies", "evercore", "piper sandler", "lazard",
         "centerview", "moelis", "guggenheim", "rbc capital", "nomura", "mizuho", "hsbc", "citigroup",
-        "citi", "bnpp", "bnp paribas", "wells fargo securities"
+        "citi", "bnpp", "bnp paribas", "wells fargo securities", "td securities", "scotiabank",
+        "bmo capital", "stifel", "william blair", "raymond james", "cowen", "greenhill"
     ]
     finance = [
         "jpmorgan", "chase", "capital one", "american express", "visa", "mastercard", "discover",
         "blackrock", "fidelity", "two sigma", "citadel", "point72", "aig", "state street",
-        "pnc", "ally", "regions bank", "us bank", "charles schwab"
+        "pnc", "ally", "regions bank", "us bank", "charles schwab", "vanguard", "t. rowe price",
+        "bridgewater", "aqr", "renaissance technologies", "de shaw", "jane street", "jump trading",
+        "hrt", "virtu", "tower research", "susquehanna", "optiver", "imc trading",
+        "prudential", "metlife", "allstate", "progressive", "travelers", "hartford"
+    ]
+    consulting = [
+        "mckinsey", "boston consulting", "bcg", "bain", "deloitte", "pwc", "kpmg", "ey",
+        "ernst & young", "accenture", "booz allen", "oliver wyman", "at kearney", "a.t. kearney",
+        "roland berger", "l.e.k.", "lek consulting", "lek", "strategy&", "monitor deloitte", "monitor","cap tech"
     ]
     retail = [
         "walmart", "target", "costco", "home depot", "lowe's", "lowes", "best buy", "kroger",
-        "walgreens", "cvs", "tesco", "aldi", "lidl", "ikea", "macy", "kohls", "nordstrom", "wayfair"
+        "walgreens", "cvs", "tesco", "aldi", "lidl", "ikea", "macy", "kohls", "nordstrom", "wayfair",
+        "gap", "old navy", "tj maxx", "marshalls", "ross", "burlington", "bed bath", "williams sonoma",
+        "foot locker", "dick's sporting", "rei", "petco", "petsmart", "whole foods", "trader joe"
     ]
     healthcare = [
         "johnson", "pfizer", "merck", "abbvie", "amgen", "novartis", "roche", "eli lilly",
-        "bristol myers", "gsk", "sanofi", "astrazeneca", "unitedhealth", "cigna", "anthem", "elevance"
+        "bristol myers", "gsk", "sanofi", "astrazeneca", "unitedhealth", "cigna", "anthem", "elevance",
+        "moderna", "regeneron", "biogen", "vertex", "gilead", "bayer", "boehringer", "takeda",
+        "cardinal health", "mckesson", "amerisource", "quest diagnostics", "labcorp", "davita",
+        "humana", "centene", "molina", "wellcare", "magellan", "optum", "aetna", "kaiser"
     ]
-    automotive = ["ford", "gm", "general motors", "toyota", "honda", "bmw", "mercedes", "volkswagen", "stellantis"]
-    energy = ["chevron", "exxon", "exxonmobil", "shell", "bp", "total", "conocophillips", "duke energy"]
+    automotive = [
+        "ford", "gm", "general motors", "toyota", "honda", "bmw", "mercedes", "volkswagen", "stellantis",
+        "rivian", "lucid", "nissan", "hyundai", "kia", "mazda", "subaru", "volvo", "porsche", "ferrari",
+        "waymo", "cruise", "argo ai", "aurora", "motional", "zoox", "mobileye", "aptiv", "bosch automotive"
+    ]
+    energy = [
+        "chevron", "exxon", "exxonmobil", "shell", "bp", "total", "conocophillips", "duke energy",
+        "nextera", "dominion", "southern company", "exelon", "pge", "pg&e", "american electric",
+        "sempra", "consolidated edison", "entergy", "xcel", "wec energy", "enbridge", "kinder morgan"
+    ]
 
     def contains(keywords):
         return any(k in name for k in keywords)
@@ -415,6 +512,8 @@ def classify_company_industry(company_name: str) -> str:
         return "Tech - Mid"
     if contains(investment_banks):
         return "Investment Banking"
+    if contains(consulting):
+        return "Consulting"
     if contains(finance):
         return "Finance"
     if contains(retail):
@@ -536,6 +635,7 @@ def parse_job_postings(df_jobs, geocode: bool = False):
     job["work_mode"] = extract_work_mode(description, location)
     job["job_function"] = extract_job_function(description, title)
     job["industry"] = classify_company_industry(job.get("company_name"))
+    job["visa_sponsorship"] = extract_visa_sponsorship(description)
     posting_dt = parse_time_posted(time_posted)
     job["time_posted_parsed"] = posting_dt.isoformat() if posting_dt else None
     

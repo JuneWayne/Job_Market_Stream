@@ -745,6 +745,7 @@
                 <button data-dim="applicants">Applicants</button>
                 <button data-dim="skills">Skills</button>
                 <button data-dim="degree">Degree</button>
+                <button data-dim="visa">Visa Sponsorship</button>
             </div>
             <div id="bs-chips"></div>
             <svg id="beeswarm-svg"></svg>
@@ -1586,6 +1587,7 @@
             const degreeGroups = ["Bachelor's", "Master's", 'PhD', "Associate's", 'Enrolled', 'High School', 'Other'];
             const workModeGroups = ['Remote', 'Hybrid', 'On-site', 'Unknown'];
             const applicantGroups = ['Low', 'Medium', 'High', 'Unknown'];
+            const visaGroups = ['Yes', 'No', 'Unclear'];
 
             return {
                 jobFunction: { label: 'Job Function', groups: [...topFunctions].sort(d3.ascending).concat('Other'), topSet: new Set(topFunctions) },
@@ -1594,7 +1596,8 @@
                 applicants: { label: 'Applicants', groups: applicantGroups },
                 time: { label: 'Time Posted', groups: ['Last 24h', 'Past week', 'Past month', 'Older', 'Unknown'] },
                 degree: { label: 'Degree', groups: degreeGroups },
-                skills: { label: 'Skills', groups: [...topSkills, 'Other'], topSet: new Set(topSkills) }
+                skills: { label: 'Skills', groups: [...topSkills, 'Other'], topSet: new Set(topSkills) },
+                visa: { label: 'Visa Sponsorship', groups: visaGroups }
             };
         }
 
@@ -1605,6 +1608,7 @@
             if (dim === 'applicants') return dims.applicants.groups.includes(d.appBucket) ? d.appBucket : 'Unknown';
             if (dim === 'time') return d.timeBucket;
             if (dim === 'degree') return dims.degree.groups.includes(d.degreeLevel) ? d.degreeLevel : 'Other';
+            if (dim === 'visa') return dims.visa.groups.includes(d.visaSponsorship) ? d.visaSponsorship : 'Unclear';
             if (dim === 'skills') {
                 const match = d.skills.find(s => dims.skills.topSet.has(s));
                 return match || 'Other';
@@ -1798,6 +1802,7 @@
                         workMode: firstToken(j.work_mode) || 'Unknown',
                         timeBucket: bucketTime(j.time_posted),
                         degreeLevel: degreeLevel(j.degree_qualifications || j.degree_requirement || ''),
+                        visaSponsorship: j.visa_sponsorship || 'Unclear',
                         skills: extractSkills(j),
                         jobLink: j.job_link && j.job_link !== 'N/A' ? j.job_link : null
                     };

@@ -375,6 +375,7 @@ def _raw_beeswarm_query(limit: int, hours: int):
       job_function AS "Job Function",
       skills AS skills_desired,
       degree_requirement AS degree_qualifications,
+      visa_sponsorship,
       time_posted_parsed,
       application_link,
       application_link AS job_link,

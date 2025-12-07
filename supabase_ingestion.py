@@ -55,6 +55,7 @@ def ensure_table(conn: psycopg2.extensions.connection) -> None:
         job_function TEXT,
         skills TEXT,
         degree_requirement TEXT,
+        visa_sponsorship TEXT,
         time_posted_parsed TIMESTAMP WITH TIME ZONE,
         application_link TEXT,
         num_applicants_int INTEGER,
@@ -89,6 +90,13 @@ def ensure_table(conn: psycopg2.extensions.connection) -> None:
                     WHERE table_name = 'job-market-stream' AND column_name = 'industry'
                 ) THEN
                     ALTER TABLE {TABLE_NAME} ADD COLUMN industry TEXT;
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'job-market-stream' AND column_name = 'visa_sponsorship'
+                ) THEN
+                    ALTER TABLE {TABLE_NAME} ADD COLUMN visa_sponsorship TEXT;
                 END IF;
             END $$;
         """)
@@ -170,6 +178,7 @@ def load_records() -> List[Tuple[Any, ...]]:
             _clean_str(row.get("job_function")),
             _clean_str(row.get("skills")),
             _clean_str(row.get("degree_requirement")),
+            _clean_str(row.get("visa_sponsorship")),
             _clean_timestamp(row.get("time_posted_parsed")),
             _clean_str(row.get("application_link")),
             _clean_int(row.get("num_applicants_int")),
@@ -197,7 +206,7 @@ def upsert_records(
     insert_sql = f"""
     INSERT INTO {TABLE_NAME} (
         job_id, job_title, job_description, company_name, industry, location, latitude, longitude,
-        job_function, skills, degree_requirement, time_posted_parsed, application_link,
+        job_function, skills, degree_requirement, visa_sponsorship, time_posted_parsed, application_link,
         num_applicants_int, work_mode, scraped_at
     ) VALUES %s
     ON CONFLICT (job_id) DO UPDATE SET
@@ -211,6 +220,7 @@ def upsert_records(
         job_function = COALESCE(EXCLUDED.job_function, {TABLE_NAME}.job_function),
         skills = COALESCE(EXCLUDED.skills, {TABLE_NAME}.skills),
         degree_requirement = COALESCE(EXCLUDED.degree_requirement, {TABLE_NAME}.degree_requirement),
+        visa_sponsorship = COALESCE(EXCLUDED.visa_sponsorship, {TABLE_NAME}.visa_sponsorship),
         time_posted_parsed = COALESCE(EXCLUDED.time_posted_parsed, {TABLE_NAME}.time_posted_parsed),
         application_link = COALESCE(EXCLUDED.application_link, {TABLE_NAME}.application_link),
         num_applicants_int = COALESCE(EXCLUDED.num_applicants_int, {TABLE_NAME}.num_applicants_int),
