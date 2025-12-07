@@ -268,7 +268,7 @@ def extract_visa_sponsorship(text):
     
     # Strong positive indicators
     positive_patterns = [
-        r"sponsorship available",
+        r"sponsorship is available",
         r"will sponsor",
         r"can sponsor",
         r"sponsors? (h-?1b|opt|cpt)",
@@ -297,6 +297,7 @@ def extract_visa_sponsorship(text):
         r"active (secret|top.?secret) clearance",
         r"must possess.*clearance",
         r"us persons? only",
+        r"visa sponsorship is not available"
     ]
     
     # Check for positive signals
@@ -310,6 +311,54 @@ def extract_visa_sponsorship(text):
             return "No"
     
     # Default to unclear if no explicit mention
+    return "Unclear"
+def extract_visa_sponsorship(text, title: str = ""):
+    """
+    Heuristic visa sponsorship classifier.
+
+    Returns: "Yes", "No", or "Unclear".
+    Uses both title and description to catch more cues.
+    """
+    combined = f"{title} {text}".lower()
+
+    positive_patterns = [
+        r"\bvisa sponsorship\b",
+        r"\bsponsorship (is )?available\b",
+        r"\bwill sponsor\b",
+        r"\bcan sponsor\b",
+        r"\bsponsor(s|ship)? (h-?1b|h1b|opt|cpt|stem opt)\b",
+        r"\b(h-?1b|h1b|opt|cpt|stem opt) sponsorship\b",
+        r"\binternational (students?|candidates?) (welcome|encouraged)\b",
+        r"\bopen to international\b",
+        r"\bvisa eligible\b",
+    ]
+
+    negative_patterns = [
+        r"\bno visa sponsorship\b",
+        r"\b(no|not|unable to) sponsor\b",
+        r"\bwill not sponsor\b",
+        r"\bdoes not sponsor\b",
+        r"\bwithout (visa )?sponsorship\b",
+        r"\bnot (eligible|able) for sponsorship\b",
+        r"\bmust have work authorization\b",
+        r"\bno c2c\b",
+        r"\b(us citizen|citizenship) required\b",
+        r"\bgreen card (holders?|required)\b",
+        r"\bus persons? only\b",
+        r"\bsecurity clearance required\b",
+        r"\b(active )?(secret|top ?secret) clearance\b",
+        r"\bitar\b",
+        r"visa sponsorship is not available",
+    ]
+
+    for pattern in positive_patterns:
+        if re.search(pattern, combined, flags=re.IGNORECASE):
+            return "Yes"
+
+    for pattern in negative_patterns:
+        if re.search(pattern, combined, flags=re.IGNORECASE):
+            return "No"
+
     return "Unclear"
 
 def extract_job_function(text, title):
