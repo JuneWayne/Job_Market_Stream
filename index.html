@@ -1766,7 +1766,7 @@
                                     <b>Industry:</b> ${job['Industries'] || 'N/A'}<br>
                                     ${job.skills_desired ? `<b>Skills:</b> ${job.skills_desired.slice(0, 100)}${job.skills_desired.length > 100 ? '...' : ''}<br>` : ''}
                                     ${job.degree_qualifications ? `<b>Degree:</b> ${job.degree_qualifications}<br>` : ''}
-                                    ${job.summary ? `<b>Summary:</b> ${job.summary.slice(0, 150)}${job.summary.length > 150 ? '...' : ''}<br>` : ''}
+                                    ${job.summary ? `<details class="job-summary"><summary style="cursor:pointer; color:#2563eb;">Summary</summary><div style="margin-top:4px; color:#111827;">${job.summary}</div></details>` : ''}
                                     ${appLink ? `<b>Apply:</b> <a href="${appLink}" target="_blank">Link</a>` : ''}
                                 </div>
                             </div>`;
