@@ -287,6 +287,7 @@ def extract_visa_sponsorship(text):
         r"cannot sponsor",
         r"will not sponsor",
         r"does not sponsor",
+        r"visa sponsorship is not",
         r"unable to sponsor",
         r"not eligible for.*sponsor",
         r"us citizen.*required",
