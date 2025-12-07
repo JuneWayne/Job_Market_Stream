@@ -268,7 +268,6 @@ def extract_visa_sponsorship(text):
     
     # Strong positive indicators
     positive_patterns = [
-        r"visa sponsor",
         r"sponsorship available",
         r"will sponsor",
         r"can sponsor",
@@ -278,7 +277,6 @@ def extract_visa_sponsorship(text):
         r"open to international",
         r"eligible for visa",
         r"f-?1.*opt.*sponsor",
-        r"stem opt",
     ]
     
     # Strong negative indicators
