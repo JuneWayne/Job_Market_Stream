@@ -297,7 +297,6 @@ def extract_visa_sponsorship(text):
         r"active (secret|top.?secret) clearance",
         r"must possess.*clearance",
         r"us persons? only",
-        r"itar",
     ]
     
     # Check for positive signals
