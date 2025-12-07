@@ -348,7 +348,8 @@ def extract_visa_sponsorship(text, title: str = ""):
         r"\bsecurity clearance required\b",
         r"\b(active )?(secret|top ?secret) clearance\b",
         r"\bitar\b",
-        r"visa sponsorship is not available",
+        r"\bvisa sponsorship is not available\b",
+        r"\bdo not provide visa sponsorship\b",
     ]
 
     for pattern in positive_patterns:
