@@ -283,6 +283,8 @@ def extract_visa_sponsorship(text):
     negative_patterns = [
         r"no visa sponsor",
         r"cannot sponsor",
+        r"unable to provide sponsorship",
+        r"unable to",
         r"will not sponsor",
         r"does not sponsor",
         r"visa sponsorship is not",
