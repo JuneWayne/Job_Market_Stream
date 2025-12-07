@@ -15,6 +15,7 @@ FIELDNAMES = [
     "job_function",
     "skills",
     "degree_requirement",
+    "visa_sponsorship",
     "time_posted_parsed",
     "application_link",
     "num_applicants_int",
