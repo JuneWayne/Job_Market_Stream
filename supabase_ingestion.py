@@ -223,9 +223,9 @@ def upsert_records(
         visa_sponsorship = COALESCE(EXCLUDED.visa_sponsorship, {TABLE_NAME}.visa_sponsorship),
         time_posted_parsed = COALESCE(EXCLUDED.time_posted_parsed, {TABLE_NAME}.time_posted_parsed),
         application_link = COALESCE(EXCLUDED.application_link, {TABLE_NAME}.application_link),
-        num_applicants_int = COALESCE(EXCLUDED.num_applicants_int, {TABLE_NAME}.num_applicants_int),
+        num_applicants_int = EXCLUDED.num_applicants_int,
         work_mode = COALESCE(EXCLUDED.work_mode, {TABLE_NAME}.work_mode),
-        scraped_at = COALESCE(EXCLUDED.scraped_at, {TABLE_NAME}.scraped_at);
+        scraped_at = EXCLUDED.scraped_at;
     """
 
     with conn.cursor() as cursor:

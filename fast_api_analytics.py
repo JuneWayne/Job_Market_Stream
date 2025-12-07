@@ -61,6 +61,42 @@ def get_conn():
     return psycopg2.connect(db_url)
 
 
+_schema_checked = False
+
+
+def ensure_schema():
+    """Add missing columns that new queries rely on (idempotent)."""
+    global _schema_checked
+    if _schema_checked:
+        return
+
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                          AND table_name = 'job-market-stream'
+                          AND column_name = 'visa_sponsorship'
+                    ) THEN
+                        ALTER TABLE "job-market-stream" ADD COLUMN visa_sponsorship TEXT;
+                    END IF;
+                END $$;
+                """
+            )
+        conn.commit()
+        _schema_checked = True
+    except Exception as exc:
+        conn.rollback()
+        print(f"ensure_schema failed: {exc}")
+    finally:
+        conn.close()
+
+
 # execute query and return pandas dataframe
 def query_to_df(sql: str, params: tuple = None) -> pd.DataFrame:
     conn = get_conn()
@@ -362,6 +398,7 @@ def hourly_counts(hours: int = 24):
 
 # shared query for beeswarm and map visualizations
 def _raw_beeswarm_query(limit: int, hours: int):
+    ensure_schema()
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
 
     sql = """
