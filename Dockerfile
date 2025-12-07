@@ -12,7 +12,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy all project code
 COPY . .
 
-RUN chmod +x /app/auto_git_push.sh
-
 # run consumer.py by default
 CMD ["python", "consumer.py"]
