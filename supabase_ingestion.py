@@ -14,6 +14,25 @@ load_dotenv()
 
 DATA_CSV = Path("data/parsed_jobs.csv")
 TABLE_NAME = '"job-market-stream"'
+EXPECTED_COLUMNS = [
+    "job_id",
+    "job_title",
+    "job_description",
+    "company_name",
+    "industry",
+    "location",
+    "latitude",
+    "longitude",
+    "job_function",
+    "skills",
+    "degree_requirement",
+    "visa_sponsorship",
+    "time_posted_parsed",
+    "application_link",
+    "num_applicants_int",
+    "work_mode",
+    "scraped_at",
+]
 
 logger = logging.getLogger("supabase_ingestion")
 logging.basicConfig(
@@ -150,11 +169,38 @@ def load_records() -> List[Tuple[Any, ...]]:
         logger.warning("%s not found, skipping ingestion", DATA_CSV)
         return []
 
+    def _skip_bad_line(bad_line: list[str]) -> None:
+        # Log and drop lines with unexpected column counts so ingestion keeps running.
+        logger.warning(
+            "Skipping malformed row with %d fields (expected %d): %s",
+            len(bad_line),
+            len(EXPECTED_COLUMNS),
+            bad_line[:3],
+        )
+
     try:
-        df = pd.read_csv(DATA_CSV)
+        df = pd.read_csv(
+            DATA_CSV,
+            engine="python",  # more permissive parsing for occasional bad rows
+            on_bad_lines=_skip_bad_line,
+            usecols=lambda c: c in EXPECTED_COLUMNS,
+        )
     except Exception:
         logger.exception("Failed to read %s", DATA_CSV)
         return []
+
+    # Normalize numeric columns and drop rows that look misaligned (e.g., job_function filled with longitude).
+    df["latitude"] = pd.to_numeric(df.get("latitude"), errors="coerce")
+    df["longitude"] = pd.to_numeric(df.get("longitude"), errors="coerce")
+    df["num_applicants_int"] = pd.to_numeric(df.get("num_applicants_int"), errors="coerce")
+
+    numeric_job_func = pd.to_numeric(df.get("job_function"), errors="coerce")
+    bad_jobfunc = numeric_job_func.notna()
+    if bad_jobfunc.any():
+        logger.warning("Dropping %d rows with numeric job_function (misaligned data)", int(bad_jobfunc.sum()))
+        df = df.loc[~bad_jobfunc]
+
+    df = df.dropna(subset=["latitude", "longitude"])
 
     if df.empty:
         logger.info("No rows found in %s", DATA_CSV)
