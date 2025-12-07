@@ -276,58 +276,55 @@ def extract_visa_sponsorship(text):
         r"international (students?|candidates?) (welcome|encouraged)",
         r"open to international",
         r"eligible for visa",
-        r"f-?1.*opt.*sponsor",
-    ]
-    
-    # Strong negative indicators
-    negative_patterns = [
-        r"no visa sponsor",
-        r"cannot sponsor",
-        r"unable to provide sponsorship",
-        r"unable to",
-        r"will not sponsor",
-        r"does not sponsor",
-        r"visa sponsorship is not",
-        r"unable to sponsor",
-        r"not eligible for.*sponsor",
-        r"us citizen.*required",
-        r"must be (a )?us citizen",
-        r"citizenship required",
-        r"security clearance required",
-        r"active (secret|top.?secret) clearance",
-        r"must possess.*clearance",
-        r"us persons? only",
-    ]
-    
-    # Check for positive signals
-    for pattern in positive_patterns:
-        if re.search(pattern, txt, flags=re.IGNORECASE):
-            return "Yes"
-    
-    # Check for negative signals
-    for pattern in negative_patterns:
-        if re.search(pattern, txt, flags=re.IGNORECASE):
-            return "No"
-    
-    # Default to unclear if no explicit mention
-    return "Unclear"
+        def extract_visa_sponsorship(text, title: str = ""):
+            """
+            Heuristic visa sponsorship classifier.
 
-def extract_job_function(text, title):
-    parts = []
-    parts.append(title.lower())
-    parts.append(text.lower())
-    combined = " ".join(parts)
+            Returns: "Yes", "No", or "Unclear".
+            - Looks for explicit yes/no cues (H1B/OPT/CPT/visa sponsor phrases).
+            - Treats clearance/citizenship-only requirements as a strong "No".
+            """
+            combined = f"{title} {text}".lower()
 
-    if not combined.strip():
-        return "Other"
-    
-    # ML engineer / applied ML
-    if ("machine learning engineer" in combined or
-        "ml engineer" in combined or
-        "ml ops engineer" in combined or
-        "applied scientist" in combined or
-        "applied machine learning" in combined):
-        return "Machine Learning Engineer"
+            positive_patterns = [
+                r"\bsponsorship (is )?available\b",
+                r"\bwill sponsor\b",
+                r"\bcan sponsor\b",
+                r"\bsponsor(s|ship)? (h-?1b|h1b|opt|cpt|stem opt)\b",
+                r"\b(h-?1b|h1b|opt|cpt|stem opt) sponsorship\b",
+                r"\binternational (students?|candidates?) (welcome|encouraged)\b",
+                r"\bopen to international\b",
+                r"\bvisa eligible\b",
+                r"\bstem opt\b",
+                r"\btransfer (h-?1b|h1b)\b",
+            ]
+
+            negative_patterns = [
+                r"\bno visa sponsorship\b",
+                r"\b(no|not|unable to) sponsor\b",
+                r"\bwill not sponsor\b",
+                r"\bdoes not sponsor\b",
+                r"\bwithout (visa )?sponsorship\b",
+                r"\bnot (eligible|able) for sponsorship\b",
+                r"\bmust have work authorization\b",
+                r"\bno c2c\b",
+                r"\b(us citizen|citizenship) required\b",
+                r"\bgreen card (holders?|required)\b",
+                r"\bus persons? only\b",
+                r"\bsecurity clearance required\b",
+                r"\b(active )?(secret|top ?secret) clearance\b",
+                r"\bitar\b",
+            ]
+
+            for pattern in positive_patterns:
+                if re.search(pattern, combined, flags=re.IGNORECASE):
+                    return "Yes"
+
+            for pattern in negative_patterns:
+                if re.search(pattern, combined, flags=re.IGNORECASE):
+                    return "No"
+
+            return "Unclear"
 
     # Research scientist
     if ("research scientist" in combined or
