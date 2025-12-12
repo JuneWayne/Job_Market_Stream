@@ -5,13 +5,57 @@ import time
 from datetime import datetime
 from job_parser import parse_job_postings
 import re
+import random
+import logging
 
+logger = logging.getLogger(__name__)
+
+# Rotate user agents to reduce detection
+USER_AGENTS = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
+]
+
+def get_headers():
+    """Return headers with a random user agent."""
+    return {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+    }
+
+def request_with_retry(url, max_retries=3, base_delay=5):
+    """Make a GET request with exponential backoff retry."""
+    for attempt in range(max_retries):
+        try:
+            headers = get_headers()
+            response = requests.get(url, headers=headers, timeout=30)
+            if response.status_code == 200:
+                return response
+            elif response.status_code == 429:
+                # Rate limited - wait longer
+                delay = base_delay * (2 ** attempt) + random.uniform(1, 5)
+                logger.warning(f"Rate limited (429), waiting {delay:.1f}s before retry...")
+                time.sleep(delay)
+            else:
+                logger.warning(f"Got status {response.status_code} for {url}")
+                return None
+        except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectionError) as e:
+            delay = base_delay * (2 ** attempt) + random.uniform(1, 3)
+            logger.warning(f"Request failed ({type(e).__name__}), retry {attempt+1}/{max_retries} after {delay:.1f}s")
+            time.sleep(delay)
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            return None
+    logger.error(f"Failed after {max_retries} retries: {url}")
+    return None
+
+# Keep HEADERS for backward compatibility
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/131.0.0.0 Safari/537.36"
-    )
+    "User-Agent": USER_AGENTS[0]
 }
 def get_num_applicants(detail_soup):
     """
@@ -86,15 +130,19 @@ def scrape_linkedin(keywords, location, geo_id,
             "start": start,
         }
 
-        # Get the list of job cards
-        response = requests.get(base_url, headers=HEADERS, params=params, timeout=20)
-        if response.status_code != 200:
-            print("Stopped at start={}, status={}".format(start, response.status_code))
-            break
+        # Get the list of job cards with retry
+        url = f"{base_url}?keywords={params['keywords']}&location={params['location']}&geoId={params['geoId']}&f_TPR={params['f_TPR']}&start={params['start']}"
+        response = request_with_retry(url, max_retries=3, base_delay=5)
+        if response is None:
+            logger.warning(f"Failed to fetch page at start={start}, skipping...")
+            start += 25
+            time.sleep(5)
+            continue
 
         # parse the current page's html structure
         soup = BeautifulSoup(response.text, "html.parser")
         page_jobs = soup.find_all("li")
+        logger.info(f"start={start}, jobs_on_page={len(page_jobs)}")
         print("start={}, jobs_on_page={}".format(start, len(page_jobs)))
 
         # If no jobs returned, break
@@ -111,15 +159,15 @@ def scrape_linkedin(keywords, location, geo_id,
                     seen_ids.add(job_id)
                     id_list.append(job_id)
 
-        # Small pause to avoid rate limiting
-        time.sleep(2)
+        # Random pause to avoid rate limiting (3-6 seconds)
+        time.sleep(random.uniform(3, 6))
 
-        # For each job ID, request the detailed job posting
+        # For each job ID, request the detailed job posting with retry
         for job_id in id_list:
             detail_url = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{}".format(job_id)
-            detail_response = requests.get(detail_url, headers=HEADERS, timeout=180)
+            detail_response = request_with_retry(detail_url, max_retries=3, base_delay=3)
 
-            if detail_response.status_code != 200:
+            if detail_response is None:
                 continue
 
             detail_soup = BeautifulSoup(detail_response.text, "html.parser")
@@ -156,6 +204,9 @@ def scrape_linkedin(keywords, location, geo_id,
                 job_post["job_description"] = None
 
             job_list.append(job_post)
+            
+            # Small delay between job detail requests
+            time.sleep(random.uniform(1, 2))
 
 
             job_post["application_link"] = extract_application_link(detail_soup, job_id)

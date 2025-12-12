@@ -3,8 +3,10 @@
 import json
 import logging
 import os
+import time
 
 from kafka import KafkaConsumer
+from kafka.errors import NoBrokersAvailable, KafkaError
 
 from config import KAFKA_SERVER, KAFKA_TOPIC
 from job_parser import parse_job_postings  
@@ -17,23 +19,42 @@ logging.basicConfig(
 logger = logging.getLogger("consumer")
 
 
-def get_consumer():
+def get_consumer_with_retry(max_retries=10, base_delay=5):
     """
-    Create and return a KafkaConsumer that reads JSON messages.
+    Create and return a KafkaConsumer with retry logic for broker connectivity.
     """
-    consumer = KafkaConsumer(
-        KAFKA_TOPIC,
-        bootstrap_servers=KAFKA_SERVER,
-        value_deserializer=lambda m: json.loads(m.decode("utf-8")),
-        group_id="job-parsers",
-        auto_offset_reset="earliest", 
-        enable_auto_commit=True,
-    )
-    return consumer
+    for attempt in range(max_retries):
+        try:
+            consumer = KafkaConsumer(
+                KAFKA_TOPIC,
+                bootstrap_servers=KAFKA_SERVER,
+                value_deserializer=lambda m: json.loads(m.decode("utf-8")),
+                group_id="job-parsers",
+                auto_offset_reset="earliest", 
+                enable_auto_commit=True,
+            )
+            logger.info("Successfully connected to Kafka broker")
+            return consumer
+        except NoBrokersAvailable:
+            delay = base_delay * (2 ** min(attempt, 4))  # Cap exponential growth
+            logger.warning(
+                "No brokers available (attempt %d/%d), retrying in %ds...",
+                attempt + 1, max_retries, delay
+            )
+            time.sleep(delay)
+        except KafkaError as e:
+            delay = base_delay * (2 ** min(attempt, 4))
+            logger.warning(
+                "Kafka error: %s (attempt %d/%d), retrying in %ds...",
+                e, attempt + 1, max_retries, delay
+            )
+            time.sleep(delay)
+    
+    raise NoBrokersAvailable("Failed to connect after %d retries" % max_retries)
 
 
 def run_consumer():
-    consumer = get_consumer()
+    consumer = get_consumer_with_retry()
     logger.info("Consumer started, listening to topic '%s'", KAFKA_TOPIC)
     
     # Enable geocoding via environment variable (default: disabled for performance)

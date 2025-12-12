@@ -21,6 +21,13 @@ services:
     ports:
       - "9092:9092" # Kafka API
       - "9644:9644" # Admin API (optional)
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   console:
     image: docker.redpanda.com/redpandadata/console:v3.1.0
@@ -39,14 +46,17 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - redpanda
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
 
   consumer:
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      - redpanda
+      redpanda:
+        condition: service_healthy
     environment:
       - KAFKA_SERVER=redpanda:9092
       - KAFKA_TOPIC=job_postings
