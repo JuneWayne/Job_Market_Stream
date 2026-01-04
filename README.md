@@ -26,16 +26,78 @@
 
 ### What You Can Explore
 
-| Metric               | Description                                                    |
-| -------------------- | -------------------------------------------------------------- |
-| **Daily Trends**     | 180-day rolling view of job posting volume                     |
-| **Job Functions**    | Distribution across Data Science, Analytics, Engineering roles |
-| **Work Modes**       | Remote vs. Hybrid vs. On-site breakdown                        |
-| **Geographic Map**   | Interactive clustered map of job locations                     |
-| **Beeswarm Plot**    | Visual exploration by function, company, skills, time          |
-| **Top Skills**       | Most in-demand technical skills extracted from descriptions    |
-| **24-Hour Activity** | Hourly posting patterns and real-time pulse                    |
-| **Skills Network**   | Co-occurrence relationships between skills                     |
+| Metric                        | Description                                                    |
+| ----------------------------- | -------------------------------------------------------------- |
+| **Daily Trends**              | 180-day rolling view of job posting volume                     |
+| **Job Functions**             | Distribution across Data Science, Analytics, Engineering roles |
+| **Work Modes**                | Remote vs. Hybrid vs. On-site breakdown                        |
+| **Geographic Map**            | Interactive clustered map of job locations                     |
+| **Beeswarm Plot**             | Visual exploration by function, company, skills, time          |
+| **Top Skills**                | Most in-demand technical skills extracted from descriptions    |
+| **24-Hour Activity**          | Hourly posting patterns and real-time pulse                    |
+| **Skills Network**            | Co-occurrence relationships between skills                     |
+| **Job Function Segmentation** | 14 distinct job archetypes identified via NLP clustering       |
+
+---
+
+## NLP Analytics & Job Function Segmentation
+
+### Advanced Job Market Analysis
+
+Beyond real-time dashboards, this project includes **deep NLP analysis** to uncover hidden job market structures using transformer-based embeddings and unsupervised clustering.
+
+**Analysis Notebook:** [`NLP_Analytics/data_science_microprofessions.ipynb`](NLP_Analytics/data_science_microprofessions.ipynb)
+
+#### Key Findings: 14 Job Function Segments Identified
+
+Analyzed **5,001 job postings** (Dec 2025 - Jan 2026) using K-Means clustering (k=14, silhouette score: 0.316) on sentence embeddings:
+
+| Macro Category             | Clusters | % of Market | Key Roles                                                       |
+| -------------------------- | -------- | ----------- | --------------------------------------------------------------- |
+| **Analytics**              | 0,5,9,13 | 31.8%       | Business Data Analyst, Analytics Engineer, Influencer Marketing |
+| **Entry-Level/Internship** | 4,12     | 27.7%       | Junior Data Analyst, Entry-Level ML Intern                      |
+| **Specialized Domain**     | 3,8,10   | 15.1%       | Enterprise Data Science (IBM), BI Analyst, Sports Analytics     |
+| **ML/AI Engineering**      | 1,2,11   | 12.7%       | AI/ML Model Dev, Product ML Engineer, ML Infrastructure         |
+| **Data Engineering**       | 7        | 9.8%        | Data Pipeline Engineering, ETL Programs                         |
+| **Creative/Product**       | 6        | 2.9%        | Creative/Media Data Analytics                                   |
+
+#### Cluster Visualizations
+
+**1. Cluster Size Distribution by Category**
+<p align="center">
+  <img src="docs/cluster_distribution.png" alt="Cluster Distribution" width="600">
+</p>
+
+Horizontal bar chart showing job posting volume across 14 clusters, color-coded by macro category. Entry-level roles (Cluster 4: 893 jobs, Cluster 13: 791 jobs) dominate the market.
+
+**2. Job Market Composition Pie Chart**
+<p align="center">
+  <img src="docs/macro_categories.png" alt="Macro Categories" width="500">
+</p>
+
+Market breakdown reveals analytics and entry-level positions comprise nearly 60% of all postings, while specialized ML/AI roles represent a competitive 12.7%.
+
+**3. PCA Embedding Visualization**
+<p align="center">
+  <img src="docs/pca_clusters.png" alt="PCA Clusters" width="700">
+</p>
+
+Interactive 2D projection of job description embeddings shows clear cluster separation, validating the 14-segment job function taxonomy. [View interactive version](pca_clusters.html)
+
+#### Methodology Highlights
+
+- **Text Processing**: all-MiniLM-L6-v2 sentence transformer for semantic embeddings
+- **Clustering**: K-Means with hyperparameter tuning (silhouette score optimization)
+- **Interpretation**: TF-IDF term extraction + manual semantic labeling
+- **Skill Analysis**: Cross-cluster technology stack profiling (70+ skills tracked)
+- **Temporal Tracking**: Quarterly cluster stability and evolution metrics
+
+#### Strategic Insights
+
+1. **Market Fragmentation**: Data science roles are stratifying into 14+ distinct archetypes requiring targeted specialization
+2. **Entry-Level Saturation**: 27.7% of market is internship/junior roles, indicating strong talent pipeline demand
+3. **Technology Divide**: Clear skill stack separation (SQL/Tableau for analytics vs PyTorch/Docker for ML engineering)
+4. **Domain Specialization**: Industry-specific expertise (sports, media, enterprise) creates niche opportunities
 
 ---
 
@@ -237,6 +299,11 @@ Job_Market_Stream/
 ├── Data Analytics
 │   └── fast_api_analytics.py  # REST API server (26 endpoints)
 │
+├── NLP Analytics
+│   ├── data_science_microprofessions.ipynb  # Clustering analysis notebook
+│   ├── cluster_interpretations.csv          # Cluster metadata & labels
+│   └── clustered_jobs.csv                   # Jobs with cluster assignments
+│
 ├── Frontend
 │   ├── index.html          # Dashboard (D3.js + Leaflet)
 │   └── static/             # Static assets
@@ -258,16 +325,17 @@ Job_Market_Stream/
 
 ## Tech Stack
 
-| Layer              | Technology                            |
-| ------------------ | ------------------------------------- |
-| **Scraping**       | Python, BeautifulSoup, Requests       |
-| **Streaming**      | Apache Kafka (Redpanda), kafka-python |
-| **Storage**        | Supabase PostgreSQL, CSV (staging)    |
-| **API**            | FastAPI, Uvicorn, psycopg2            |
-| **Visualization**  | D3.js, Leaflet, MarkerCluster         |
-| **Geocoding**      | OpenStreetMap Nominatim               |
-| **Infrastructure** | Docker, Docker Compose                |
-| **Hosting**        | GitHub Pages (frontend), Render (API) |
+| Layer              | Technology                                  |
+| ------------------ | ------------------------------------------- |
+| **Scraping**       | Python, BeautifulSoup, Requests             |
+| **Streaming**      | Apache Kafka (Redpanda), kafka-python       |
+| **Storage**        | Supabase PostgreSQL, CSV (staging)          |
+| **API**            | FastAPI, Uvicorn, psycopg2                  |
+| **Visualization**  | D3.js, Leaflet, MarkerCluster, Matplotlib   |
+| **NLP/ML**         | Sentence-Transformers, Scikit-learn, TF-IDF |
+| **Geocoding**      | OpenStreetMap Nominatim                     |
+| **Infrastructure** | Docker, Docker Compose                      |
+| **Hosting**        | GitHub Pages (frontend), Render (API)       |
 
 ---
 
