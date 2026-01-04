@@ -82,7 +82,7 @@ Market breakdown reveals analytics and entry-level positions comprise nearly 60%
   <img src="docs/pca_clusters.png" alt="PCA Clusters" width="700">
 </p>
 
-Interactive 2D projection of job description embeddings shows clear cluster separation, validating the 14-segment job function taxonomy. [View interactive version](pca_clusters.html)
+2D projection of job description embeddings shows clear cluster separation, validating the 14-segment job function taxonomy. The PCA analysis explains 25% of total variance while preserving the semantic structure discovered through K-Means clustering.
 
 #### Methodology Highlights
 
