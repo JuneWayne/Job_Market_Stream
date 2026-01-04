@@ -10,3 +10,10 @@ bs4
 pymongo
 psycopg2-binary
 uvicorn[standard]
+matplotlib
+seaborn
+numpy
+scikit-learn
+sentence-transformers
+plotly
+scipy

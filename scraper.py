@@ -202,6 +202,9 @@ def scrape_linkedin(keywords, location, geo_id,
                 job_post["job_description"] = desc_div.get_text(strip=True)
             else:
                 job_post["job_description"] = None
+            
+            # Application link
+            job_post["application_link"] = extract_application_link(detail_soup, job_id)
 
             job_list.append(job_post)
             
@@ -209,7 +212,7 @@ def scrape_linkedin(keywords, location, geo_id,
             time.sleep(random.uniform(1, 2))
 
 
-            job_post["application_link"] = extract_application_link(detail_soup, job_id)
+            
 
 
             # Stop if max search limit hit

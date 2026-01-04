@@ -200,7 +200,8 @@ def load_records() -> List[Tuple[Any, ...]]:
         logger.warning("Dropping %d rows with numeric job_function (misaligned data)", int(bad_jobfunc.sum()))
         df = df.loc[~bad_jobfunc]
 
-    df = df.dropna(subset=["latitude", "longitude"])
+    # Allow jobs without geocoded coordinates - they won't appear on map but will be in all other analytics
+    # df = df.dropna(subset=["latitude", "longitude"])
 
     if df.empty:
         logger.info("No rows found in %s", DATA_CSV)
