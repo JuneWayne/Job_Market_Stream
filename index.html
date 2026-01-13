@@ -729,7 +729,7 @@
                     <div class="legend-item"><span class="legend-circle low"></span> Low (1–60)</div>
                     <div class="legend-item"><span class="legend-circle medium"></span> Medium (61–100)</div>
                     <div class="legend-item"><span class="legend-circle high"></span> High (101+)</div>
-                    <div class="legend-item"><span class="legend-circle unknown"></span> Unknown</div>
+                    <div class="legend-item"><span class="legend-circle unknown"></span> No data from last 24h</div>
                 </div>
             </div>
         </div>
@@ -1534,8 +1534,8 @@
 
         // Helper functions
         const slugify = str => (str || '').toString().toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-        const clean = v => (v || 'Unknown').toString().trim();
-        const firstToken = v => clean(v).split(',')[0].split('/')[0].trim() || 'Unknown';
+        const clean = v => (v || 'No data available').toString().trim();
+        const firstToken = v => clean(v).split(',')[0].split('/')[0].trim() || 'No data available';
         const toInt = x => { if (x == null) return null; const m = x.toString().match(/\d+/); return m ? +m[0] : null; };
 
         function degreeLevel(text = '') {
@@ -1585,8 +1585,8 @@
             const topIndustries = topK(nodes, d => d.industry, 8);
             const topSkills = topK(nodes.flatMap(d => d.skills.map(s => ({ skill: s }))), d => d.skill, 12);
             const degreeGroups = ["Bachelor's", "Master's", 'PhD', "Associate's", 'Enrolled', 'High School', 'Other'];
-            const workModeGroups = ['Remote', 'Hybrid', 'On-site', 'Unknown'];
-            const applicantGroups = ['Low', 'Medium', 'High', 'Unknown'];
+            const workModeGroups = ['Remote', 'Hybrid', 'On-site', 'Not specified'];
+            const applicantGroups = ['Low', 'Medium', 'High', 'Not specified'];
             const visaGroups = ['Yes', 'No', 'Unclear'];
 
             return {
@@ -1594,7 +1594,7 @@
                 industry: { label: 'Industry', groups: [...topIndustries].sort(d3.ascending).concat('Other'), topSet: new Set(topIndustries) },
                 workMode: { label: 'Work Mode', groups: workModeGroups },
                 applicants: { label: 'Applicants', groups: applicantGroups },
-                time: { label: 'Time Posted', groups: ['Last 24h', 'Past week', 'Past month', 'Older', 'Unknown'] },
+                time: { label: 'Time Posted', groups: ['Last 24h', 'Past week', 'Past month', 'Older', 'No recent data'] },
                 degree: { label: 'Degree', groups: degreeGroups },
                 skills: { label: 'Skills', groups: [...topSkills, 'Other'], topSet: new Set(topSkills) },
                 visa: { label: 'Visa Sponsorship', groups: visaGroups }
@@ -1639,7 +1639,7 @@
                 // Build unique locations from jobs
                 const locationSet = new Map();
                 jobs.forEach(job => {
-                    const locKey = (job.location || 'Unknown').trim().toLowerCase();
+                    const locKey = (job.location || 'Location not specified').trim().toLowerCase();
                     if (!locationSet.has(locKey)) {
                         locationSet.set(locKey, {
                             location: job.location || 'Unknown',
@@ -1796,7 +1796,7 @@
                         coords: coordsByKey[locationKey] || null,
                         applicants,
                         appLevel: applicants == null ? 'unknown' : (applicants < 61 ? 'low' : (applicants < 101 ? 'medium' : 'high')),
-                        appBucket: applicants == null ? 'Unknown' : (applicants < 61 ? 'Low' : (applicants < 101 ? 'Medium' : 'High')),
+                        appBucket: applicants == null ? 'Not specified' : (applicants < 61 ? 'Low' : (applicants < 101 ? 'Medium' : 'High')),
                         jobFunction: firstToken(j['Job Function'] || j.job_function),
                         industry: firstToken(j['Industries'] || j.industry),
                         workMode: firstToken(j.work_mode) || 'Unknown',
