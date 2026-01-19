@@ -64,6 +64,18 @@ services:
     volumes:
       - ./data:/app/data
     restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import os; exit(0 if os.path.exists('/app/data/parsed_jobs.csv') and (os.path.getmtime('/app/data/parsed_jobs.csv') > os.path.getmtime('/proc/1/stat') - 600) else 1)",
+        ]
+      interval: 300s # Check every 5 minutes
+      timeout: 30s
+      retries: 3
+      start_period: 60s
     # uses default CMD ["python", "consumer.py"]
 
   producer:
